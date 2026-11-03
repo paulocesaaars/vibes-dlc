@@ -22,8 +22,8 @@ roda no terminal.
 
 ## Arquitetura
 A aplicação é um único processo Next.js, com um gerenciador de terminal em memória
-e um leitor dos arquivos do AI-DLC. O guia fica dentro do repositório AI-DLC do
-usuário, e o diretório de trabalho do terminal é a raiz desse repositório.
+e um leitor dos arquivos do AI-DLC. O guia fica em uma subpasta própria do repositório
+AI-DLC do usuário, e o diretório de trabalho do terminal é a raiz desse repositório.
 
 ```
 Navegador ──(xterm.js)──> rotas /api/terminal ──> TerminalManager ──> node-pty ──> shell ──> CLI de IA
@@ -59,8 +59,8 @@ independente da ferramenta de IA usada.
   conteúdo para o modelo do `core`. A lista de etapas (33, com slug, fase, agent
   líder e artefatos produzidos) e os níveis vêm de
   `.claude/tools/data/stage-graph.json`. Também monta o comando de cada etapa. Só lê
-  arquivos e não escreve neles. Uma demanda do painel corresponde a um intent do
-  AI-DLC.
+  arquivos e executa comandos de leitura, como `aidlc engine log answers`, e não
+  escreve nesses arquivos. Uma demanda do painel corresponde a um intent do AI-DLC.
 - **`guide`:** conteúdo do guia em português: nomes das fases, etapas, artefatos e
   agentes, descrição de cada etapa, lista do que conferir por fase e frases padrão
   de cada momento. É dado estático, sem acesso a arquivos do AI-DLC.
@@ -80,7 +80,7 @@ guia. A da direita é o terminal, de cima a baixo. Abaixo de 1180 px, as colunas
 empilham.
 
 **Telas:** início, nova demanda (três passos), guia da demanda e personalizar. O guia
-da demanda tem as abas de consulta Artefatos, Unidades e ciclos, Decisões e Comandos,
+da demanda tem as abas de consulta Artefatos, Unidades e ciclos, Decisões e Histórico,
 com um botão para voltar ao guia.
 
 **Passos de cada etapa e de onde vem cada sinal:**
@@ -95,9 +95,9 @@ com um botão para voltar ao guia.
 | Aprovar | `approve`, `revising` | Marca `[?]` com todos os artefatos abertos, ou marca `[R]` | `[?]` confirmado; `[R]` a validar |
 | Conclusão | `syncing`, `celebrate` | Aprovação gravada em `<record>/audit/` | Arquivos |
 
-**Momentos do guia:** são 18, cada um com imagem ou vídeo e frases: início, os três
-passos de nova demanda, os da tabela acima, trilha concluída, demanda já concluída,
-abrir a IA e sessão encerrada. A faixa inferior tem uma ação principal por momento, ou
+**Momentos do guia:** são 17, cada um com imagem ou vídeo e frases: início, os três
+passos de nova demanda, os da tabela acima, trilha concluída, demanda já concluída
+e sessão encerrada. A faixa inferior tem uma ação principal por momento, ou
 diz o que está sendo aguardado.
 
 **Revisão:** um artefato é exibido por vez, como texto, com a lista do que conferir
@@ -196,8 +196,8 @@ O banco é o arquivo `.vibes/vibes.db`, dentro do repositório, e o `.vibes/` fi
 AI-DLC versionados no Git.
 
 **Guarda:**
-- demandas, nível sugerido e confirmado, e estado no ciclo;
-- passo atual do guia em cada demanda e artefatos marcados como revisados;
+- passo atual do guia em cada demanda e artefatos marcados como revisados, ligados
+  ao identificador do intent;
 - notas e marcações do usuário sobre artefatos em revisão;
 - comandos enviados ao terminal, com data e etapa;
 - índice dos artefatos lidos, com o hash do conteúdo para detectar mudanças;
@@ -208,6 +208,7 @@ AI-DLC versionados no Git.
 - a saída completa do terminal;
 - chaves ou tokens de IA, que ficam com a CLI;
 - usuários, senhas ou papéis;
+- a demanda, seu nível e seu estado, que são sempre lidos dos arquivos do AI-DLC;
 - aprovações e decisões, que ficam no registro do próprio AI-DLC e são apenas lidas.
 
 ## Interfaces
@@ -272,8 +273,6 @@ AI-DLC versionados no Git.
   a execução pelos arquivos. "Retirar do terminal" depende de como cada CLI trata a
   linha de entrada (por exemplo, `Ctrl+U`). Se isso não for confiável, a opção sai do
   produto.
-- **Abrir a IA:** o botão precisa saber o comando da CLI escolhida, e o painel não
-  consegue detectar se ela já está aberta sem interpretar o terminal.
 - **Git Bash com `node-pty`:** confirmar no Windows o funcionamento com ConPTY, os
   argumentos de inicialização, o caminho do `bash.exe` e as CLIs interativas.
 - O `node-pty` é um pacote npm com parte nativa. Confirmar que o `npm install`
@@ -283,14 +282,13 @@ AI-DLC versionados no Git.
   interativas.
 - O `node:sqlite` pode estar marcado como experimental na versão de Node suportada.
   É preciso confirmar o estado e, se necessário, adotar o `better-sqlite3`.
-- O repositório ainda não tem nenhum intent, então não há `aidlc-state.md` real.
-  Quando o primeiro intent for criado com `/aidlc`, mapear o formato do estado, do
-  registro de auditoria (`<record>/audit/`) e dos artefatos, para o leitor `aidlc`
-  não quebrar com mudanças do framework.
+- Mapear as mudanças de formato do estado, do registro de auditoria
+  (`<record>/audit/`) e dos artefatos, com base no intent em execução, para o leitor
+  `aidlc` não quebrar com mudanças do framework.
 - Os comandos mudam por CLI de IA: `/aidlc` e `/aidlc-<etapa>` são comandos do
   Claude Code, e o guia promete funcionar com outras. Definir um modelo de comando por
   CLI, para Codex, Devin e outras, e a escolha da CLI no guia. O protótipo ainda não
-  tem essa escolha.
+  tem essa escolha. No MVP, os comandos prontos são só para o Claude Code.
 - **Idioma:** o AI-DLC pode mostrar opções fixas em inglês nos gates, como `Approve`.
   O guia deve usar instruções que continuem corretas nesse caso.
 - Se o SSE para a saída do terminal der atraso perceptível com CLIs de saída

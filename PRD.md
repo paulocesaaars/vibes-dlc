@@ -80,12 +80,15 @@ rastreabilidade, sem perder o controle da qualidade da arquitetura.
    lateral direita e pode ser recolhido e expandido sem encerrar a sessão.
 3. O produto deve enviar ao terminal os comandos do AI-DLC de cada etapa. O
    usuário vê o comando e confirma antes do envio, e pode editá-lo. Pode executar
-   na hora ou só colar o comando, para pressionar Enter no terminal.
+   na hora ou só colar o comando, para pressionar Enter no terminal. Os comandos
+   prontos são para o Claude Code. Com outra CLI, o guia mostra o comando como
+   referência e orienta a pessoa a digitá-lo, sem envio.
 4. O produto deve ler o estado e os artefatos que o AI-DLC grava no repositório e
    exibi-los para revisão (plano, Units, Bolts, TDDs, Domain Designs e testes).
 5. O produto deve sugerir o nível do fluxo por regras locais, mostrando o motivo.
    O usuário confirma ou troca, e pode pedir uma análise à CLI de IA, enviada como
-   comando. O produto não consulta modelo algum.
+   comando. O produto não consulta modelo algum. Com outra CLI, o pedido de análise
+   aparece como referência, para a pessoa digitar.
 6. As perguntas, decisões de arquitetura e aprovações de etapa acontecem no
    terminal, nos gates do próprio AI-DLC. O produto não tem botão de aprovar. Deve
    exibir essas decisões e aprovações, lidas do registro do AI-DLC, ligadas à
@@ -95,7 +98,8 @@ rastreabilidade, sem perder o controle da qualidade da arquitetura.
 8. O produto deve funcionar com repositórios novos e legados.
 9. A instalação deve exigir apenas Node.js, `npm install` e a execução do Next.
    Não pode depender de banco, fila ou serviço externo. No Windows, exige também o
-   Git Bash.
+   Git Bash. O produto é instalado copiando os arquivos para uma subpasta própria do
+   repositório, sem alterar o `package.json` existente.
 10. O produto deve aceitar a execução de uma etapa no terminal sem o painel
     aberto: ao reabrir, deve reconciliar o estado a partir dos arquivos do
     AI-DLC e avisar o usuário do que mudou.
@@ -118,6 +122,10 @@ rastreabilidade, sem perder o controle da qualidade da arquitetura.
     ferramenta específica.
 17. Toda a interface deve estar em português (Brasil). Ficam no original apenas os
     comandos do AI-DLC, os caminhos de arquivo e o que a CLI de IA imprime.
+18. Só a demanda ativa no AI-DLC recebe comandos. As outras podem ser consultadas, e o
+    guia oferece o comando para torná-la ativa, com confirmação.
+19. Depois de 10 minutos sem mudança nos arquivos do AI-DLC, com a etapa em andamento,
+    o guia avisa que a IA pode ter parado e orienta a retomar.
 
 ## Níveis do fluxo
 Os níveis são os escopos do AI-DLC. A interface mostra o nome em português, e o
@@ -147,7 +155,8 @@ AI-DLC pode pular as etapas condicionais.
 - A revisão dos artefatos é incentivada, mas não bloqueia a aprovação: o gate é do
   AI-DLC, e o guia não pode impedi-lo.
 - A personalização muda a aparência e as frases, nunca o conteúdo nem a estrutura:
-  o produto é sempre um guia do AI-DLC.
+  o produto é sempre um guia do AI-DLC. A exceção é a seção "Sua IA", em que a pessoa
+  diz se usa outra CLI, o que muda o passo Enviar.
 - O logo é a identidade do Vibes DLC: o desenho não muda, e só a cor do logo e do
   título pode ser escolhida, separada da cor principal. O favicon mantém sempre a
   cor original.
@@ -155,10 +164,10 @@ AI-DLC pode pular as etapas condicionais.
   mesmo poder do usuário no terminal.
 
 ## Como saber que funcionou
-- Uma pessoa leva uma demanda real do requisito até o resultado usando o guia e
-  a CLI de IA no terminal integrado, sem sair da ferramenta.
-- Uma pessoa que nunca usou o AI-DLC conclui uma etapa seguindo só as instruções
-  do guia, sem consultar a documentação do framework.
+- Quem desenvolve leva uma demanda real do registro até o código gerado, usando só
+  o guia e o terminal integrado.
+- Uma pessoa que nunca usou o AI-DLC conclui uma etapa sem ajuda, sem consultar a
+  documentação do framework.
 - Um repositório AI-DLC passa a rodar o painel com `npm install` e um comando.
 
 ## Riscos
