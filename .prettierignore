@@ -1,0 +1,8 @@
+tests/fixtures/
+package-lock.json
+next-env.d.ts
+migrations/
+.mcp.json
+skills-lock.json
+aidlc.settings.json
+aidlc.settings.local.json

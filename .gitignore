@@ -25,3 +25,8 @@ aidlc/spaces/*/intents/*/.aidlc-*
 aidlc/diagnostics/
 .claude/settings.local.json
 # END AI-DLC:gitignore
+
+# Vibes DLC
+.vibes/
+node_modules/
+.next/
