@@ -1,0 +1,89 @@
+{
+  "version": 1,
+  "skills": {
+    "atualizar-docs": {
+      "source": "paulocesaaars/skills",
+      "sourceType": "github",
+      "skillPath": "skills/atualizar-docs/SKILL.md",
+      "computedHash": "31226a17dde7a9ce13ceb51f6953eddb3b013dd1d408d7435e12f181a2787134",
+      "installMode": "copy"
+    },
+    "atualizar-projeto": {
+      "source": "paulocesaaars/skills",
+      "sourceType": "github",
+      "skillPath": "skills/atualizar-projeto/SKILL.md",
+      "computedHash": "4caa46eeb118f47ddfc9726465da182f20a55e05e18a8eddf44a76f80cea1e79",
+      "installMode": "copy"
+    },
+    "criar-testes": {
+      "source": "paulocesaaars/skills",
+      "sourceType": "github",
+      "skillPath": "skills/criar-testes/SKILL.md",
+      "computedHash": "41f8c5c8b5e66fccdaa7657627361d31a1beb3fe90712a3fbdfbd5de711af4f8",
+      "installMode": "copy"
+    },
+    "especificar-feature": {
+      "source": "paulocesaaars/skills",
+      "sourceType": "github",
+      "skillPath": "skills/especificar-feature/SKILL.md",
+      "computedHash": "4e8b29b893504003ad94be0256ca847e5a748d7ea88b8434451123fc9563a6d6",
+      "installMode": "copy"
+    },
+    "especificar-projeto": {
+      "source": "paulocesaaars/skills",
+      "sourceType": "github",
+      "skillPath": "skills/especificar-projeto/SKILL.md",
+      "computedHash": "1513b3261481ecee024a7728caad4fdab6435a62895a8de4c2c9b1b3fa0597a8",
+      "installMode": "copy"
+    },
+    "gerar-guardrails": {
+      "source": "paulocesaaars/skills",
+      "sourceType": "github",
+      "skillPath": "skills/gerar-guardrails/SKILL.md",
+      "computedHash": "95ca43ac8a8b6168768a0484fa4efaf6ed4828149cc7a479c69bdecd339fbcd4",
+      "installMode": "copy"
+    },
+    "gerar-skill": {
+      "source": "paulocesaaars/skills",
+      "sourceType": "github",
+      "skillPath": "skills/gerar-skill/SKILL.md",
+      "computedHash": "c2cf38a6d61f17d4a6ea63ffdff172d052e8392bc03625deffd8846a0f0ad695",
+      "installMode": "copy"
+    },
+    "implementar-sdd": {
+      "source": "paulocesaaars/skills",
+      "sourceType": "github",
+      "skillPath": "skills/implementar-sdd/SKILL.md",
+      "computedHash": "3208c2badc60ad9706d1d981be12e713169c9c8e28074b8308fe622a261765e0",
+      "installMode": "copy"
+    },
+    "iniciar-projeto": {
+      "source": "paulocesaaars/skills",
+      "sourceType": "github",
+      "skillPath": "skills/iniciar-projeto/SKILL.md",
+      "computedHash": "0ddfc5cadde54940281ca3324006ffbaacd2eb0c09a5c592b205ef3dae06b47c",
+      "installMode": "copy"
+    },
+    "publicar-release": {
+      "source": "paulocesaaars/skills",
+      "sourceType": "github",
+      "skillPath": "skills/publicar-release/SKILL.md",
+      "computedHash": "2909ed2c0df82901504feb563b782c20a281aa8c738340d9ebff681c5f20d6b7",
+      "installMode": "copy"
+    },
+    "revisar-codigo": {
+      "source": "paulocesaaars/skills",
+      "sourceType": "github",
+      "skillPath": "skills/revisar-codigo/SKILL.md",
+      "computedHash": "c13dd71d09d3cdd07d3c09958453d37cf2fc0d90b8fabcea86eed4e685156a86",
+      "installMode": "copy"
+    },
+    "versionar": {
+      "source": "paulocesaaars/skills",
+      "sourceType": "github",
+      "skillPath": "skills/versionar/SKILL.md",
+      "computedHash": "739d23e32937bdeedf0b99524cbc4e808c9378acb974987eff613c5e1947694d",
+      "installMode": "copy"
+    }
+  }
+}
