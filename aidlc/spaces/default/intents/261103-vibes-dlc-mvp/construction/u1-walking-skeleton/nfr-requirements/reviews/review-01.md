@@ -1,0 +1,28 @@
+## Review
+
+**Verdict:** READY
+**Reviewer:** aidlc-architecture-reviewer-agent
+**Date:** 2026-11-03T16:06:33Z
+**Iteration:** 1
+**Verdict Dictated:** no
+
+### Findings
+
+| ID | Severity | Location | Finding | Required action | Status |
+|---|---|---|---|---|---|
+| R-01 | Major | aidlc/spaces/default/intents/261103-vibes-dlc-mvp/construction/u1-walking-skeleton/nfr-requirements/security-requirements.md > NFR4.1, NFR4.2 | Os requisitos exigem rejeitar `Origin` e `Host` "de fora", mas não dizem quais valores contam como o próprio app. Isso não é detalhe: com o servidor em `127.0.0.1`, quem abrir `http://localhost:3000` (o endereço que o Next costuma imprimir) envia `Host: localhost:3000`, e a pessoa pode ser bloqueada por 403 ou o `localhost` ser aceito por uma regra frouxa. Também não está dito o que acontece com `Origin` ausente, nem o que vale quando `VIBES_HOST` é outro endereço. Os testes "por rota" e o passo 6 da prova não podem ser escritos sem essa lista. | Definir o conjunto permitido de `Host` e `Origin` (por exemplo, `127.0.0.1:<port>` e `localhost:<port>` quando o host padrão estiver ativo, ou o `VIBES_HOST` configurado), o tratamento de `Origin` ausente por tipo de rota (POST, stream) e acrescentar casos de teste para `localhost` e para `Host` com porta diferente. | New |
+| R-02 | Major | aidlc/spaces/default/intents/261103-vibes-dlc-mvp/construction/u1-walking-skeleton/nfr-requirements/tech-stack-decisions.md > Web e servidor, Transporte, Conferências no início de U1; reliability-requirements.md > NFR2.5 e NFR2.6; scalability-requirements.md > NFR2.3 | A sessão do terminal e o registro `dead` vivem em memória do processo, mas o desenho usa Next.js com App Router e rotas separadas (`session`, `input`, `resize`, stream), e a prova roda em `npm run dev`. Em desenvolvimento, o Next recarrega módulos e pode compilar cada rota em um pacote separado, então uma variável de módulo pode ser duplicada ou perdida, o que quebraria "uma sessão por processo" (NFR2.3), a permanência ao recarregar (NFR2.5) e o `dead` (NFR2.6). Nenhum requisito ou conferência de início cita esse risco, e a lista de conferências só trata de `node-pty`, `node:sqlite` e SSE. | Acrescentar um requisito de que o estado do terminal fica em um único objeto por processo, compartilhado entre rotas e sobrevivente à recarga de módulos (por exemplo, guardado em `globalThis` ou inicializado pelo gancho de instrumentação do Next), e incluir nas conferências de início um teste em `npm run dev` e em `npm run build && npm start` com a sessão aberta por uma rota e escrita por outra. | New |
+| R-03 | Minor | aidlc/spaces/default/intents/261103-vibes-dlc-mvp/construction/u1-walking-skeleton/nfr-requirements/security-requirements.md > NFR13.1, NFR13.2, NFR7.1 | O texto de cada comando fica gravado em `sent_command`, sem retenção ou limpeza (a escalabilidade diz que não precisa), e a própria segurança admite que a pessoa pode digitar um segredo. NFR13.1 promete "nenhuma chave" no banco, o que NFR13.2 contradiz em parte. NFR7.1 também depende de `.vibes/` estar no `.gitignore`, para o `git status` não mudar, mas isso só aparece como ponto aberto no desenho funcional. | Reescrever NFR13.1 como "nenhuma chave de IA gerida pelo produto" e registrar a retenção de `sent_command` como risco aceito, ou limitar o que é guardado. Incluir `.vibes/` no `.gitignore` como pré-condição de NFR7.1. | New |
+| R-04 | Minor | aidlc/spaces/default/intents/261103-vibes-dlc-mvp/construction/u1-walking-skeleton/nfr-requirements/security-requirements.md > NFR4.5 | Só o comando tem limite (8000 caracteres). As rotas `input` e `resize` não têm limite de tamanho de mensagem nem faixa válida de colunas e linhas, e nada limita a taxa de entrada. Um corpo grande ou um `resize` absurdo vai direto ao `node-pty`. | Definir o tamanho máximo do corpo de `input`, a faixa de `resize` e o tratamento da entrada fora dela, com teste. | New |
+| R-05 | Minor | aidlc/spaces/default/intents/261103-vibes-dlc-mvp/construction/u1-walking-skeleton/nfr-requirements/performance-requirements.md > NFR2.1, NFR2.2 | Não há meta para o tempo de reaplicar o buffer ao recarregar, que pode chegar a 5 MB de blocos brutos (BR3.4), nem para a abertura da sessão. A meta de 150 ms em 95% de 100 teclas deixa 5 teclas sem limite, e não diz o pior caso aceito. | Acrescentar uma meta de tempo para o reenvio do buffer cheio e para o pior eco, ou registrar que ficam sem meta nesta Unidade. | New |
+| R-06 | Minor | aidlc/spaces/default/intents/261103-vibes-dlc-mvp/construction/u1-walking-skeleton/nfr-requirements/reliability-requirements.md > NFR9.2 | "Versões atuais do Chrome e do Edge" não é verificável, e a prova automática usa só um dos dois navegadores já instalados. Nenhum requisito diz qual dos dois é o de referência. | Nomear o navegador usado na prova e dizer se o outro é verificado só à mão pela pessoa que desenvolve. | New |
+
+### Validation Tool Results
+
+| Tool | Result | Interpretation |
+|---|---|---|
+| sensor-traceability (nfr-requirements, traceability.json) | pass: true; gaps, orphans, missing_from_table, missing_from_upstream_ids, invalid_entries e invalid_targets vazios; findings_count 0 | Os NFR1 a NFR13 estão todos cobertos. Os achados acima são de completude e de risco, não de cobertura. |
+
+### Summary
+
+Os requisitos cobrem todos os NFR de origem, com metas e verificações concretas. Faltam dois pontos que um desenvolvedor teria de adivinhar: quais `Host` e `Origin` são do próprio app, e como o estado do terminal em memória sobrevive ao modelo de rotas e de recarga do Next. Com dois Majors e nenhum Critical, o veredito é READY, mas ambos devem ser fechados antes do código.

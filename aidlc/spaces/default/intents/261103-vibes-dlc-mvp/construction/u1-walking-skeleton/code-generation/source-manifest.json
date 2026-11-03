@@ -1,0 +1,22 @@
+{
+  "stage": "code-generation",
+  "unit": "u1-walking-skeleton",
+  "version": 1,
+  "writes": [
+    { "path": ".gitignore" },
+    { "path": ".prettierignore" },
+    { "path": ".prettierrc.json" },
+    { "path": "eslint.config.mjs" },
+    { "path": "next-env.d.ts" },
+    { "path": "next.config.ts" },
+    { "path": "package-lock.json" },
+    { "path": "package.json" },
+    { "path": "playwright.config.ts" },
+    { "path": "tsconfig.json" },
+    { "path": "vitest.config.ts" },
+    { "path": "migrations/" },
+    { "path": "scripts/" },
+    { "path": "src/" },
+    { "path": "tests/" }
+  ]
+}
