@@ -60,7 +60,19 @@
 
 
 
-- **Construction Verification Command**: npx tsx scripts/proof-u1.ts
+- **Construction Verification Command**: npm run verify
+
+
+
+
+
+
+
+
+
+
+
+
 
 ## Phase Progress
 <!-- Status values: Pending, Active, Verified, Skipped -->
@@ -122,7 +134,9 @@
 - **Current Stage**: functional-design
 - **Next Stage**: nfr-requirements
 - **Status**: Running
-- **Last Updated**: 2026-11-03T17:11:58Z
+- **Last Updated**: 2026-11-03T21:51:11Z
+
+- **Construction Autonomy Mode**: autonomous
 
 ## Session Resume Point
 - **Last Completed Stage**: delivery-planning
