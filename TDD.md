@@ -90,9 +90,9 @@ com um botão para voltar ao guia.
 | Entender | `intro` | Etapa atual no AI-DLC, e o usuário ainda não seguiu adiante | Arquivos e SQLite |
 | Enviar | `ready`, `pasted` | Comando ainda não enviado, ou só colado | SQLite |
 | Acompanhar | `running` | Comando enviado e artefatos surgindo no diretório da etapa | Arquivos |
-| Acompanhar | `question` | A CLI está esperando uma resposta | **A validar** |
-| Revisar | `review` | Etapa pronta para revisão e artefatos não abertos | **A validar** para "pronta"; o resto vem do SQLite |
-| Aprovar | `approve`, `revising` | Todos os artefatos abertos, ou alteração pedida | **A validar** |
+| Acompanhar | `question` | `aidlc engine log answers --stage <etapa>` lista a pergunta em `open` | Confirmado, para perguntas que o AI-DLC registra |
+| Revisar | `review` | Marca `[?]` na etapa e evento `STAGE_AWAITING_APPROVAL`, com artefatos não abertos | Confirmado; os artefatos abertos vêm do SQLite |
+| Aprovar | `approve`, `revising` | Marca `[?]` com todos os artefatos abertos, ou marca `[R]` | `[?]` confirmado; `[R]` a validar |
 | Conclusão | `syncing`, `celebrate` | Aprovação gravada em `<record>/audit/` | Arquivos |
 
 **Momentos do guia:** são 18, cada um com imagem ou vídeo e frases: início, os três
@@ -261,12 +261,13 @@ AI-DLC versionados no Git.
 | Mídia enviada sem SVG | Aceitar qualquer imagem | SVG pode conter script. O logo é o único SVG, e vem do próprio produto. |
 
 ## Pontos a validar
-- **Sinais do guia:** o protótipo simula saber quando a CLI fez uma pergunta, quando a
-  etapa está pronta e quando o gate espera aprovação. O produto não interpreta o
-  terminal, então esses sinais precisam vir dos arquivos do AI-DLC. Verificar o que o
-  `aidlc-state.md` e o `<record>/audit/` registram. Onde não houver sinal, o guia usa
+- **Sinais do guia:** em execução real (`FEEDBACK-AIDLC.md`), a pergunta registrada, o
+  gate aberto, a etapa em andamento e a aprovação têm sinal nos arquivos e nos comandos
+  de leitura do AI-DLC. Com o gate aberto, `**Status**` continua `Running`, então o
+  passo vem da marca da etapa, não desse campo. Falta confirmar `[R]`, o comportamento
+  na Construção e a retomada de sessão. Quando a IA perguntar sem registrar, o guia usa
   uma instrução genérica, como "Se a sua IA perguntar algo, responda no terminal", e
-  esses momentos não reabrem o terminal sozinhos.
+  esse momento não reabre o terminal sozinho.
 - **Comando colado:** o painel não sabe quando o usuário pressiona Enter, e só percebe
   a execução pelos arquivos. "Retirar do terminal" depende de como cada CLI trata a
   linha de entrada (por exemplo, `Ctrl+U`). Se isso não for confiável, a opção sai do
@@ -276,7 +277,8 @@ AI-DLC versionados no Git.
 - **Git Bash com `node-pty`:** confirmar no Windows o funcionamento com ConPTY, os
   argumentos de inicialização, o caminho do `bash.exe` e as CLIs interativas.
 - O `node-pty` é um pacote npm com parte nativa. Confirmar que o `npm install`
-  funciona sem compilação manual no Windows, macOS e Linux. Se falhar, a
+  funciona sem compilação manual, primeiro no Windows com Git Bash, que é o que o MVP
+  verifica; macOS e Linux ficam para depois do MVP. Se falhar, a
   alternativa é o `child_process` sem PTY, com perda de recursos das CLIs
   interativas.
 - O `node:sqlite` pode estar marcado como experimental na versão de Node suportada.
