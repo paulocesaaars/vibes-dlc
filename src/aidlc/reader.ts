@@ -2,11 +2,22 @@ import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { logger } from '@/config/logger';
 import type { RepoHealth, StageMark } from '@/core/types';
+import {
+  type ArtifactContent,
+  type ArtifactItem,
+  type ArtifactScope,
+  listArtifactPaths,
+  readArtifactFile,
+  resolveArtifactPath,
+  toArtifactItem,
+} from './artifacts';
 import { ChangeWatcher } from './change-watcher';
 import { computeSignature } from './file-signature';
+import { isSafeSlug, type QuestionOptions } from './open-questions';
 import { parseState, type ParsedState } from './parse-state';
 import { type AidlcPaths, isSafeName, readActiveIntent, resolveAidlcPaths } from './paths';
 import { type GraphStage, readStageGraph } from './stage-graph';
+import { type WorkPosition, WorkSignalsReader, type WorkSignals } from './work-signals';
 
 const STALE_LIMIT_MS = 10_000;
 
@@ -82,12 +93,63 @@ export class AidlcReader {
   private readonly listeners = new Set<(intentId: string | null) => void>();
   private readonly lastValid = new Map<string, LastValid>();
   private watcher: ChangeWatcher | null = null;
+  private readonly work: WorkSignalsReader;
 
   constructor(
     private readonly repoRoot: string | null,
     private readonly now: () => number = Date.now,
     private readonly watchOptions: { pollIntervalMs?: number; debounceMs?: number } = {},
-  ) {}
+    questions: QuestionOptions | null = null,
+  ) {
+    this.work = new WorkSignalsReader(now, questions);
+  }
+
+  /** Posição, gate, perguntas e tempo sem mudança da demanda, a partir de `audit/` e do comando. */
+  async readWorkSignals(detail: DemandDetail): Promise<WorkSignals> {
+    const paths = this.paths();
+    const intentId = detail.summary.intentId;
+    if (!paths || !this.repoRoot) throw new Error('A pasta do AI-DLC não foi encontrada.');
+    return this.work.read(detail, path.join(paths.intentsDir, intentId), this.repoRoot);
+  }
+
+  async readWorkPosition(intentId: string): Promise<WorkPosition | null> {
+    const read = this.readDemand(intentId);
+    if (read.kind !== 'ok') return null;
+    return (await this.readWorkSignals(read.detail)).position;
+  }
+
+  /** Artefatos da etapa, com o hash do conteúdo. A lista é relida a cada pedido (BR1.1). */
+  async listArtifacts(
+    intentId: string,
+    stageSlug: string,
+    scope: ArtifactScope = {},
+  ): Promise<ArtifactItem[]> {
+    const recordDir = this.recordDir(intentId);
+    if (!recordDir || !isSafeSlug(stageSlug)) return [];
+    if (scope.unit && !isSafeSlug(scope.unit)) return [];
+    const read = this.readDemand(intentId);
+    if (read.kind !== 'ok') return [];
+    const stage = read.detail.phases
+      .flatMap((phase) => phase.stages)
+      .find((entry) => entry.stageSlug === stageSlug);
+    if (!stage) return [];
+    const files = await listArtifactPaths(recordDir, stage.phase, stageSlug, scope);
+    return Promise.all(files.map((file) => toArtifactItem(recordDir, file)));
+  }
+
+  /** Lê um artefato como dado não confiável, ou `null` para um caminho fora do registro. */
+  async readArtifact(intentId: string, relativePath: string): Promise<ArtifactContent | null> {
+    const recordDir = this.recordDir(intentId);
+    if (!recordDir) return null;
+    const resolved = await resolveArtifactPath(recordDir, relativePath);
+    return resolved ? readArtifactFile(resolved) : null;
+  }
+
+  private recordDir(intentId: string): string | null {
+    const paths = this.paths();
+    if (!paths || !isSafeName(intentId)) return null;
+    return path.join(paths.intentsDir, intentId);
+  }
 
   /** Lê a demanda ativa, sempre a partir dos cursores (BR5.7). */
   readActive(): ActiveRead {

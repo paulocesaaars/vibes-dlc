@@ -92,6 +92,18 @@ export class SentCommandRepo {
     return rows[0] ? toSentCommand(rows[0]) : null;
   }
 
+  /** Comandos que chegaram ao terminal nesta demanda, do mais recente ao mais antigo. */
+  listWritten(intentId: string): SentCommand[] {
+    return this.db
+      .all<SentCommandRow>(
+        `SELECT * FROM sent_command
+         WHERE intent_id = ? AND status = 'written'
+         ORDER BY written_at DESC, rowid DESC`,
+        [intentId],
+      )
+      .map(toSentCommand);
+  }
+
   /** Nenhum processo anterior pode concluir o que ficou em `pending` (NFR12.3). */
   failInterrupted(): number {
     return this.db.run(`UPDATE sent_command SET status = 'failed' WHERE status = 'pending'`)

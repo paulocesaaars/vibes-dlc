@@ -16,7 +16,17 @@ function snapshot(overrides: Overrides = {}): SignalSnapshot {
   return {
     repo: { health: overrides.health ?? 'ok', failedPath: null },
     demand: { intentId: 'i', isActive: overrides.isActive ?? true, activeIntentId: 'i' },
-    stage: { slug: 's', mark: overrides.mark ?? 'pending', lastEvent: null, hasNextStage: true },
+    stage: {
+      slug: 's',
+      mark: overrides.mark ?? 'pending',
+      lastEvent: null,
+      hasNextStage: true,
+      unit: null,
+      gateApproved: false,
+      gateRejected: false,
+    },
+    previous: null,
+    position: { source: 'state' },
     signals: { openQuestions: 'unavailable', minutesSinceLastChange: 0 },
     guide: {
       understood: overrides.understood ?? false,
@@ -46,7 +56,7 @@ describe('decideMoment', () => {
     [
       'executado com gate aberto',
       { commandSent: 'executed', mark: 'awaiting_approval' },
-      'following',
+      'approve',
       'person',
       'none',
     ],
@@ -86,8 +96,16 @@ describe('decideMoment', () => {
     });
   });
 
+  it('demanda não ativa tem momento próprio na tabela de U2 e bloqueia o envio', () => {
+    const decision = decideMoment(snapshot({ understood: true, isActive: false }));
+    expect(decision).toMatchObject({
+      moment: 'not_active',
+      canSend: false,
+      sendBlockedReason: 'not_active',
+    });
+  });
+
   it.each([
-    ['demanda não ativa', { isActive: false }, 'not_active'],
     ['outra CLI', { cliKind: 'other' }, 'other_cli'],
     ['sessão sem shell com repositório ok', { session: 'unavailable' }, 'session_dead'],
   ] as const)('bloqueia o envio: %s', (_name, overrides, reason) => {

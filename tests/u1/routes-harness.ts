@@ -2,7 +2,9 @@ import path from 'node:path';
 import { AidlcReader } from '@/aidlc/reader';
 import type { AppConfig } from '@/config/app-config';
 import { findShell, type ShellLookup } from '@/config/shell-lookup';
+import { ArtifactReviewRepo } from '@/db/artifact-review-repo';
 import type { Database } from '@/db/database';
+import { DemandSeenRepo } from '@/db/demand-seen-repo';
 import { GuideProgressRepo } from '@/db/guide-progress-repo';
 import { SentCommandRepo } from '@/db/sent-command-repo';
 import { prepareStorage } from '@/db/storage';
@@ -59,6 +61,8 @@ export function createHarness(options: HarnessOptions = {}): Harness {
     terminal,
     commands: new SentCommandRepo(db),
     progress: new GuideProgressRepo(db),
+    reviews: new ArtifactReviewRepo(db),
+    seen: new DemandSeenRepo(db),
   };
   installRuntime(runtime);
   return {

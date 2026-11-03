@@ -47,6 +47,57 @@ export const resizeSchema = z.object({
 
 export const understoodSchema = z.object({ stageSlug: z.string().min(1).max(200) });
 
+/** Mesmo padrão seguro do comando de perguntas, para etapa e Unidade vindas da interface. */
+const slug = z
+  .string()
+  .regex(/^[a-z0-9][a-z0-9-]*$/)
+  .max(200);
+const MAX_PATH_LENGTH = 1024;
+const artifactPath = z.string().min(1).max(MAX_PATH_LENGTH);
+
+export const conclusionSchema = z.object({ stageSlug: slug });
+
+export const artifactsQuerySchema = z.object({
+  stage: slug,
+  unit: slug.optional(),
+  path: artifactPath.optional(),
+  /** Consulta na trilha: inclui as pastas de todas as Unidades. */
+  consult: z.enum(['1']).optional(),
+});
+
+export const reviewSchema = z.object({
+  path: artifactPath,
+  contentHash: z.string().regex(/^[0-9a-f]{64}$/),
+});
+
+export const seenSchema = z.object({
+  stageSlug: slug,
+  unit: z.union([slug, z.literal('')]),
+  mark: z.enum([
+    'pending',
+    'in_progress',
+    'awaiting_approval',
+    'revising',
+    'approved',
+    'skipped',
+    'unknown',
+  ]),
+});
+
+export type SeenResponse = {
+  status: 'first_visit' | 'same' | 'changed';
+  current: { stageSlug: string; unit: string; mark: string };
+  /** O aviso do que mudou com o painel fechado. Só existe em `changed`. */
+  text: string | null;
+};
+
+/** Lê os parâmetros da URL, sem aceitar repetidos nem desconhecidos como dado útil. */
+export function readQuery<T>(request: Request, schema: z.ZodType<T>): T | null {
+  const params = Object.fromEntries(new URL(request.url).searchParams.entries());
+  const parsed = schema.safeParse(params);
+  return parsed.success ? parsed.data : null;
+}
+
 export const streamQuerySchema = z.object({
   sessionId: z.string().min(1).max(200),
   afterSeq: z.coerce.number().int().min(0).optional(),

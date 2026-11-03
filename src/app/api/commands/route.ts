@@ -19,7 +19,7 @@ type CommandBody = {
 };
 
 /** Relê a demanda ativa e só libera com `canSend` verdadeiro (BR5.7). */
-function checkSendAllowed(runtime: Runtime, body: CommandBody): Response | null {
+async function checkSendAllowed(runtime: Runtime, body: CommandBody): Promise<Response | null> {
   const read = runtime.reader.readActive();
   if (read.kind === 'no_active_intent') return errorResponse(409, 'stale_screen', STALE_SCREEN);
 
@@ -35,7 +35,7 @@ function checkSendAllowed(runtime: Runtime, body: CommandBody): Response | null 
     }
   }
 
-  const { decision } = decideFor(runtime, body.intentId, read);
+  const { decision } = await decideFor(runtime, body.intentId, read);
   if (decision.canSend) return null;
   const reason = decision.sendBlockedReason ?? 'not_send_moment';
   return errorResponse(409, reason, sendBlockedMessage(reason));
@@ -93,7 +93,7 @@ export async function POST(request: Request): Promise<Response> {
     });
   }
 
-  const blocked = checkSendAllowed(runtime, body.data);
+  const blocked = await checkSendAllowed(runtime, body.data);
   if (blocked) return blocked;
   return writeCommand(runtime, body.data);
 }

@@ -24,5 +24,5 @@ export async function POST(request: Request, context: RouteContext): Promise<Res
   }
 
   runtime.progress.markUnderstood(intentId, body.data.stageSlug);
-  return jsonResponse(buildGuideView(runtime, intentId));
+  return jsonResponse(await buildGuideView(runtime, intentId));
 }

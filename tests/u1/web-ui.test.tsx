@@ -236,7 +236,7 @@ describe('trilha', () => {
     expect(trail.textContent).toContain('Ideação');
     expect(trail.textContent).toContain('1/3');
     expect(trail.textContent).toContain('Você está aqui');
-    expect(trail.textContent).toContain('(fora do plano)');
+    expect(trail.textContent).toContain('(pulada)');
     expect(trail.querySelector('[aria-current="step"]')?.textContent).toContain(
       'Projeto funcional',
     );

@@ -26,6 +26,7 @@ const decision = (moment: Moment, turn: Turn = 'person'): GuideDecision => ({
   primaryAction: 'none',
   canSend: false,
   sendBlockedReason: null,
+  showIdleNotice: false,
 });
 
 describe('StageContent', () => {

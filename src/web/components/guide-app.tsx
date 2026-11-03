@@ -1,13 +1,18 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { GuideDecision } from '@/core/types';
-import { momentContent, NO_ACTIVE_INTENT_CONTENT } from '@/guide/moment-content';
+import type { GuideDecision, Moment } from '@/core/types';
+import { momentContent, NO_ACTIVE_INTENT_CONTENT, terminalHint } from '@/guide/moment-content';
+import type { ArtifactQuery } from '@/web/client/use-artifacts';
+import { useArtifacts } from '@/web/client/use-artifacts';
 import { useGuide, type GuideState } from '@/web/client/use-guide';
 import type { GuideView } from '@/web/guide-service';
-import { Say, SendCard, StepBar, Trail, UnderstandCard } from './guide-parts';
+import { GuideBand } from './guide-band';
+import { ConsultBody, GuideBody } from './guide-body';
+import { Say, StepBar } from './guide-parts';
 import { Logo } from './logo';
 import { TerminalPanel, type TerminalPanelHandle } from './terminal-panel';
+import { Trail } from './trail';
 
 const MAX_COMMAND_LENGTH = 8000;
 
@@ -17,7 +22,19 @@ const FAILURE_DECISION: GuideDecision = {
   primaryAction: 'retry',
   canSend: false,
   sendBlockedReason: 'repo_failure',
+  showIdleNotice: false,
 };
+
+/** Momentos em que a tela lê os artefatos da etapa. */
+const ARTIFACT_MOMENTS: readonly Moment[] = [
+  'following',
+  'question',
+  'review',
+  'approve',
+  'revising',
+];
+/** Reabrem o terminal recolhido: pergunta registrada e aprovação pendente (`interaction-spec.md`). */
+const REOPEN_TERMINAL_MOMENTS: readonly Moment[] = ['question', 'approve'];
 
 function commandIssue(text: string): string | null {
   if (/[\r\n]/.test(text))
@@ -33,116 +50,6 @@ function focusInstruction(): void {
 
 function formatTime(iso: string): string {
   return new Date(iso).toLocaleTimeString('pt-BR');
-}
-
-type GuideBodyProps = {
-  view: GuideView;
-  draft: string;
-  failure: string | null;
-  onDraft: (value: string) => void;
-  onResetDraft: () => void;
-};
-
-function GuideBody({ view, draft, failure, onDraft, onResetDraft }: GuideBodyProps) {
-  const { content, decision } = view;
-  return (
-    <>
-      <Say
-        art={content.art}
-        eyebrow={content.eyebrow}
-        title={content.title}
-        text={content.text}
-        point={content.point}
-      />
-      {decision.moment === 'understand' ? (
-        <UnderstandCard steps={view.stageContent.howItWorks} />
-      ) : null}
-      {decision.moment === 'send' ? (
-        <SendCard
-          stageName={view.stage.name}
-          value={draft}
-          original={view.command}
-          issue={commandIssue(draft)}
-          failure={failure}
-          onChange={onDraft}
-          onReset={onResetDraft}
-        />
-      ) : null}
-    </>
-  );
-}
-
-type BandProps = {
-  view: GuideView;
-  draft: string;
-  sending: boolean;
-  onUnderstood: () => void;
-  onSend: (mode: 'execute' | 'paste') => void;
-  onNewSession: () => void;
-  onRetry: () => void;
-};
-
-/** Faixa inferior: uma ação principal por momento, ou o que está sendo aguardado (BR4.4). */
-function Band({ view, draft, sending, onUnderstood, onSend, onNewSession, onRetry }: BandProps) {
-  const { content, decision } = view;
-  const className = content.bandWaiting ? 'band band-wait' : 'band';
-  const blocked = sending || commandIssue(draft) !== null || !decision.canSend;
-  return (
-    <div className={className} data-testid="guide-band">
-      {content.bandText ? (
-        <span className="band-txt" data-testid="guide-band-text">
-          {content.bandText}
-        </span>
-      ) : null}
-      {decision.primaryAction === 'send' ? (
-        <button
-          className="btn2"
-          type="button"
-          data-testid="guide-paste-button"
-          disabled={blocked}
-          onClick={() => onSend('paste')}
-        >
-          Colar sem executar
-        </button>
-      ) : null}
-      {decision.primaryAction === 'send' ? (
-        <button
-          className="cta"
-          type="button"
-          data-testid="guide-send-button"
-          disabled={blocked}
-          onClick={() => onSend('execute')}
-        >
-          {content.primaryLabel}
-        </button>
-      ) : null}
-      {decision.primaryAction === 'understood' ? (
-        <button
-          className="cta"
-          type="button"
-          data-testid="guide-understood-button"
-          onClick={onUnderstood}
-        >
-          {content.primaryLabel}
-        </button>
-      ) : null}
-      {decision.primaryAction === 'new_session' ? (
-        <button
-          className="cta"
-          type="button"
-          data-testid="guide-new-session-button"
-          onClick={onNewSession}
-        >
-          {content.primaryLabel}
-        </button>
-      ) : null}
-      {decision.primaryAction === 'retry' ? (
-        <button className="cta" type="button" data-testid="guide-retry-button" onClick={onRetry}>
-          {content.primaryLabel}
-        </button>
-      ) : null}
-    </div>
-  );
 }
 
 function NoGuideBody({ state }: { state: Exclude<GuideState, { kind: 'guide' }> }) {
@@ -166,21 +73,87 @@ function NoGuideBody({ state }: { state: Exclude<GuideState, { kind: 'guide' }> 
   );
 }
 
+function artifactQuery(view: GuideView | null, consultStage: string | null): ArtifactQuery | null {
+  if (!view) return null;
+  const base = { intentId: view.intentId, version: view.lastChangedAt };
+  if (consultStage) return { ...base, stage: consultStage, unit: null, consult: true };
+  if (!ARTIFACT_MOMENTS.includes(view.decision.moment) || !view.stage.slug) return null;
+  return { ...base, stage: view.stage.slug, unit: view.stage.unit, consult: false };
+}
+
+function StageHeader({ view, consulting }: { view: GuideView; consulting: boolean }) {
+  const label = view.stage.unit ? `${view.stage.unit} · ${view.stage.name}` : view.stage.name;
+  return (
+    <div
+      style={{
+        padding: '12px 24px 10px',
+        borderBottom: '2px solid var(--line)',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 8,
+      }}
+    >
+      <div
+        style={{
+          display: 'flex',
+          flexWrap: 'wrap',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          gap: '4px 12px',
+        }}
+      >
+        <strong
+          data-testid="guide-stage-name"
+          style={{ fontWeight: 900, fontSize: 17, minWidth: 0 }}
+        >
+          {label}
+        </strong>
+        <span className="tag" data-testid="guide-turn" style={{ color: 'var(--blueText)' }}>
+          {view.content.turnLabel}
+        </span>
+      </div>
+      {consulting ? null : <StepBar stepNumber={view.content.stepNumber} />}
+      {view.lastChangedAt ? (
+        <span
+          data-testid="guide-last-changed"
+          data-value={view.lastChangedAt}
+          style={{ fontSize: 13, color: 'var(--gray)' }}
+        >
+          Última mudança nos arquivos: {formatTime(view.lastChangedAt)}
+        </span>
+      ) : null}
+    </div>
+  );
+}
+
 /** Tela do guia: segue a estrutura de `design/prototipo/Main.dc.html`. */
 export function GuideApp() {
-  const { state, actions, loadError } = useGuide();
+  const { state, actions, loadError, changedNotice } = useGuide();
   const [collapsed, setCollapsed] = useState(false);
   const [draftEdit, setDraftEdit] = useState<{ stage: string; text: string } | null>(null);
   const [failure, setFailure] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
+  const [resuming, setResuming] = useState(false);
+  const [consultStage, setConsultStage] = useState<string | null>(null);
+  const [shownMoment, setShownMoment] = useState<Moment | undefined>(undefined);
   const sendingRef = useRef(false);
   const terminalRef = useRef<TerminalPanelHandle>(null);
   const pendingFocus = useRef(false);
 
   const view = state.kind === 'guide' ? state.view : null;
-  const stageSlug = view?.stage.slug ?? '';
+  const stageSlug = view?.stage.stateSlug ?? '';
   const draft = draftEdit?.stage === stageSlug ? draftEdit.text : (view?.command ?? '');
   const moment = view?.decision.moment;
+  // Ajuste durante a renderização: só a chegada ao momento reabre, e recolher depois continua valendo.
+  if (moment !== shownMoment) {
+    setShownMoment(moment);
+    if (moment && REOPEN_TERMINAL_MOMENTS.includes(moment)) setCollapsed(false);
+  }
+  // A faixa pode sumir enquanto a pessoa decide: um arquivo mudou, e o cartão fecha junto (BR3.2).
+  const isResuming = resuming && view?.decision.showIdleNotice === true;
+
+  const { refresh } = actions;
+  const artifacts = useArtifacts(artifactQuery(view, consultStage), () => void refresh());
 
   useEffect(() => {
     if (!pendingFocus.current || !view) return;
@@ -222,6 +195,7 @@ export function GuideApp() {
           // Reabre o terminal recolhido, sem mover o foco para ele (BR3.11).
           setCollapsed(false);
           setDraftEdit(null);
+          setResuming(false);
           pendingFocus.current = true;
         } else {
           setFailure(result.message);
@@ -241,9 +215,27 @@ export function GuideApp() {
     await actions.understood();
   }, [actions]);
 
+  const handleNextStage = useCallback(async () => {
+    pendingFocus.current = true;
+    await actions.goToNextStage();
+  }, [actions]);
+
+  /** A etapa atual volta ao guia. As outras abrem só para consulta, sem mudar o momento (BR8.2). */
+  const handleTrailSelect = useCallback(
+    (slug: string) => {
+      setConsultStage(slug === view?.stage.slug ? null : slug);
+    },
+    [view?.stage.slug],
+  );
+
   const session = view?.session ?? null;
   const highlight =
-    moment === 'pasted' || (moment === 'following' && view?.decision.turn === 'person');
+    moment === 'pasted' ||
+    moment === 'question' ||
+    moment === 'approve' ||
+    (moment === 'following' && view?.decision.turn === 'person');
+  const consulting = consultStage !== null;
+  const issue = commandIssue(draft);
 
   return (
     <div className={collapsed ? 'app app-closed' : 'app'} data-testid="guide-app">
@@ -255,53 +247,9 @@ export function GuideApp() {
           </div>
         </header>
         <div className={view ? 'panes with-rail' : 'panes'}>
-          {view ? <Trail phases={view.trail} /> : null}
+          {view ? <Trail phases={view.trail} onSelect={handleTrailSelect} /> : null}
           <main className="main">
-            {view ? (
-              <div
-                style={{
-                  padding: '12px 24px 10px',
-                  borderBottom: '2px solid var(--line)',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: 8,
-                }}
-              >
-                <div
-                  style={{
-                    display: 'flex',
-                    flexWrap: 'wrap',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                    gap: '4px 12px',
-                  }}
-                >
-                  <strong
-                    data-testid="guide-stage-name"
-                    style={{ fontWeight: 900, fontSize: 17, minWidth: 0 }}
-                  >
-                    {view.stage.name}
-                  </strong>
-                  <span
-                    className="tag"
-                    data-testid="guide-turn"
-                    style={{ color: 'var(--blueText)' }}
-                  >
-                    {view.content.turnLabel}
-                  </span>
-                </div>
-                <StepBar stepNumber={view.content.stepNumber} />
-                {view.lastChangedAt ? (
-                  <span
-                    data-testid="guide-last-changed"
-                    data-value={view.lastChangedAt}
-                    style={{ fontSize: 13, color: 'var(--gray)' }}
-                  >
-                    Última mudança nos arquivos: {formatTime(view.lastChangedAt)}
-                  </span>
-                ) : null}
-              </div>
-            ) : null}
+            {view ? <StageHeader view={view} consulting={consulting} /> : null}
             <div className="scroll">
               <div
                 style={{
@@ -318,28 +266,43 @@ export function GuideApp() {
                     {loadError}
                   </p>
                 ) : null}
-                {view ? (
+                {view && consultStage ? (
+                  <ConsultBody stageSlug={consultStage} artifacts={artifacts} />
+                ) : null}
+                {view && !consultStage ? (
                   <GuideBody
                     view={view}
                     draft={draft}
+                    commandIssue={issue}
                     failure={failure}
+                    resuming={isResuming}
+                    changedNotice={changedNotice}
+                    artifacts={artifacts}
                     onDraft={(text) => setDraftEdit({ stage: stageSlug, text })}
                     onResetDraft={() => setDraftEdit(null)}
+                    onResume={() => setResuming(true)}
+                    onDismissChanged={actions.dismissChanged}
                   />
-                ) : (
+                ) : null}
+                {view ? null : (
                   <NoGuideBody state={state as Exclude<GuideState, { kind: 'guide' }>} />
                 )}
               </div>
             </div>
             {view ? (
-              <Band
+              <GuideBand
                 view={view}
-                draft={draft}
-                sending={sending}
+                resuming={isResuming}
+                sendBlocked={sending || issue !== null}
+                canMarkReviewed={Boolean(artifacts.list?.selected) && !artifacts.busy}
+                consulting={consulting}
                 onUnderstood={() => void handleUnderstood()}
                 onSend={(mode) => void handleSend(mode)}
                 onNewSession={() => void actions.openNewSession()}
                 onRetry={() => void actions.openNewSession()}
+                onMarkReviewed={() => void artifacts.markReviewed()}
+                onNextStage={() => void handleNextStage()}
+                onBackToGuide={() => setConsultStage(null)}
               />
             ) : state.kind === 'repo_failure' ? (
               <div className="band" data-testid="guide-band">
@@ -363,6 +326,7 @@ export function GuideApp() {
         title={view?.terminalTitle ?? 'MINGW64'}
         collapsed={collapsed}
         highlight={highlight}
+        hint={moment ? terminalHint(moment) : null}
         onToggle={() => setCollapsed((value) => !value)}
         onBackToGuide={focusInstruction}
         onEndSession={() => void actions.endSession()}

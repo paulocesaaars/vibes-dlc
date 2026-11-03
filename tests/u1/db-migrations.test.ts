@@ -34,7 +34,8 @@ describe('migrações', () => {
 
     const second = prepareStorage(dbPath);
     expect(second.all('SELECT * FROM guide_progress')).toHaveLength(1);
-    expect(second.all('SELECT * FROM schema_migrations')).toHaveLength(1);
+    const shipped = listMigrations(path.join(process.cwd(), 'migrations')).length;
+    expect(second.all('SELECT * FROM schema_migrations')).toHaveLength(shipped);
     second.close();
   });
 

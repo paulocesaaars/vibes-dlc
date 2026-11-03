@@ -1,6 +1,5 @@
 // Prova da fatia U1: painel, Edge e Git Bash reais, sem créditos de IA.
 // Passos em `functional-design/functional-spec.md`. Uso: `npx tsx scripts/proof-u1.ts`.
-import { execFileSync, spawn, type ChildProcess } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
 import { existsSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import net from 'node:net';
@@ -9,15 +8,23 @@ import path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { chromium, type Page } from '@playwright/test';
 import { PROOF_BROWSER_CHANNEL } from '../playwright.config';
+import {
+  createProofRepo,
+  gitStatusOf,
+  realRepoChanges,
+  ROOT,
+  startPanel,
+  stopPanel,
+} from './proof-repo';
 
-const ROOT = process.cwd();
 const PORT = Number(process.env.PROOF_PORT ?? 3917);
 const BASE = `http://127.0.0.1:${PORT}`;
-const INTENTS_DIR = path.join(ROOT, 'aidlc', 'spaces', 'default', 'intents');
 const PROOF_ID = randomBytes(4).toString('hex');
-// O banco da prova fica à parte, para não mexer no progresso real de quem desenvolve.
-const VIBES_DIR = path.join(ROOT, '.vibes', `proof-${PROOF_ID}`);
-const DB_PATH = path.join(VIBES_DIR, 'vibes.db');
+// A prova roda em uma cópia, sem o `audit/`: U1 prova o caminho pelo `aidlc-state.md`, e nada toca o
+// registro real nem o progresso de quem desenvolve.
+const REPO = createProofRepo(PROOF_ID, { withAudit: false });
+const VIBES_DIR = path.dirname(REPO.dbPath);
+const DB_PATH = REPO.dbPath;
 const SERVER_LOG: string[] = [];
 
 type Check = { step: string; ok: boolean; detail: string };
@@ -45,31 +52,6 @@ async function until<T>(read: () => Promise<T> | T, timeoutMs = 15_000): Promise
     if (value) return value;
     if (Date.now() > deadline) throw new Error('Tempo esgotado esperando a condição.');
     await sleep(50);
-  }
-}
-
-function startPanel(): ChildProcess {
-  const child = spawn(process.execPath, ['scripts/run-next.mjs', 'dev'], {
-    cwd: ROOT,
-    env: {
-      ...process.env,
-      PORT: String(PORT),
-      VIBES_DB_PATH: path.relative(ROOT, DB_PATH),
-      VIBES_NETWORK_DEBUG: '1',
-    },
-    stdio: ['ignore', 'pipe', 'pipe'],
-  });
-  child.stdout?.on('data', (data) => SERVER_LOG.push(String(data)));
-  child.stderr?.on('data', (data) => SERVER_LOG.push(String(data)));
-  return child;
-}
-
-function stopPanel(child: ChildProcess): void {
-  if (child.pid === undefined) return;
-  try {
-    execFileSync('taskkill', ['/PID', String(child.pid), '/T', '/F'], { stdio: 'pipe' });
-  } catch {
-    // O processo pode já ter terminado.
   }
 }
 
@@ -160,7 +142,7 @@ async function goToSendMoment(page: Page): Promise<void> {
 }
 
 async function stepAddressAndStage(page: Page, activeIntent: string): Promise<void> {
-  const state = readFileSync(path.join(INTENTS_DIR, activeIntent, 'aidlc-state.md'), 'utf8');
+  const state = readFileSync(REPO.statePath, 'utf8');
   const currentSlug = /\*\*Current Stage\*\*: (.+)/.exec(state)?.[1]?.trim() ?? '';
   const guide = (await (await fetch(`${BASE}/api/demands/${activeIntent}/guide`)).json()) as {
     stage: { slug: string; name: string };
@@ -339,9 +321,9 @@ async function measureEcho(page: Page): Promise<number[]> {
   return samples;
 }
 
-async function stepFileChange(page: Page, activeIntent: string): Promise<void> {
-  // Arquivo de teste ignorado pelo Git (`.aidlc-*`), dentro do registro observado. Removido no fim.
-  const watched = path.join(INTENTS_DIR, activeIntent, `.aidlc-proof-${PROOF_ID}`);
+async function stepFileChange(page: Page): Promise<void> {
+  // Arquivo de teste dentro do registro observado, na cópia. Removido no fim.
+  const watched = path.join(REPO.recordDir, `.aidlc-proof-${PROOF_ID}`);
   const caption = page.getByTestId('guide-last-changed');
   await caption.waitFor();
   const before = await caption.getAttribute('data-value');
@@ -377,9 +359,15 @@ async function stepF6(page: Page): Promise<void> {
     JSON.stringify(result),
   );
   await page.keyboard.press('F6');
-  const backInTerminal = await page.evaluate(() =>
-    Boolean(document.activeElement?.closest('[data-testid="terminal-screen"]')),
-  );
+  // O foco é dado no quadro seguinte (`requestAnimationFrame`), então a conferência espera por ele.
+  const backInTerminal = await page
+    .waitForFunction(
+      () => Boolean(document.activeElement?.closest('[data-testid="terminal-screen"]')),
+      undefined,
+      { timeout: 2000 },
+    )
+    .then(() => true)
+    .catch(() => false);
   record('9. F6 volta ao terminal', backInTerminal);
 }
 
@@ -418,16 +406,6 @@ function filesWithMarker(directory: string, marker: string): string[] {
   return found;
 }
 
-function gitStatus(): string[] {
-  return execFileSync('git', ['status', '--porcelain', '--untracked-files=all'], {
-    cwd: ROOT,
-    encoding: 'utf8',
-  })
-    .split('\n')
-    .filter(Boolean)
-    .sort();
-}
-
 function checkDataAndNetwork(
   externalRequests: string[],
   echoMarker: string,
@@ -456,17 +434,14 @@ function checkDataAndNetwork(
   const inLogs = SERVER_LOG.join('').includes(`ENVIADO${PROOF_ID}`);
   record('Dados: o texto do comando não vai aos logs', !inLogs);
 
-  const added = gitStatus().filter((line) => !statusBefore.includes(line));
-  const unexpected = added.filter(
-    (line) =>
-      !/ aidlc\/spaces\/default\/intents\/[^/]+\/(aidlc-state\.md|audit\/|.*\/memory\.md)/.test(
-        line,
-      ),
-  );
+  // A cópia é onde o produto roda: nada pode mudar lá, nem em `aidlc/`.
+  const inCopy = REPO.changesBeyondScript();
+  record('Git: o produto não mudou nada na cópia', inCopy.length === 0, inCopy.join(', '));
+  const inRealRepo = realRepoChanges(statusBefore);
   record(
-    'Git: o produto não mudou arquivos versionados',
-    unexpected.length === 0,
-    unexpected.join(', '),
+    'Git: as ferramentas não mudaram o repositório real',
+    inRealRepo.length === 0,
+    inRealRepo.join(', '),
   );
 }
 
@@ -479,9 +454,10 @@ function printSummary(): void {
 }
 
 async function main(): Promise<void> {
-  const activeIntent = readFileSync(path.join(INTENTS_DIR, 'active-intent'), 'utf8').trim();
-  const statusBefore = gitStatus();
-  const panel = startPanel();
+  const activeIntent = REPO.intentId;
+  // O nome vem do registro copiado: nada aqui lê o `active-intent` real de novo.
+  const statusBefore = gitStatusOf(ROOT);
+  const panel = startPanel(REPO, PORT, SERVER_LOG);
   const browser = await chromium.launch({ channel: PROOF_BROWSER_CHANNEL });
   try {
     await until(async () => {
@@ -521,7 +497,7 @@ async function main(): Promise<void> {
     await stepSendAndPaste(page);
     await stepForeignOrigin();
     await stepEcho(page);
-    await stepFileChange(page, activeIntent);
+    await stepFileChange(page);
     await stepF6(page);
     await stepEndSession(page);
     await page.close();
@@ -538,7 +514,7 @@ async function main(): Promise<void> {
     await browser.close();
     stopPanel(panel);
     await sleep(800);
-    rmSync(VIBES_DIR, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
+    REPO.remove();
     printSummary();
   }
 }

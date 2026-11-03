@@ -6,8 +6,11 @@ import type { GuideView } from '@/web/guide-service';
 import {
   fetchDemands,
   fetchGuide,
+  fetchSeen,
   killSession,
   postCommand,
+  postConclusionSeen,
+  postSeen,
   postUnderstood,
   requestSession,
   type SendResult,
@@ -15,6 +18,8 @@ import {
 import { newCommandId, readStoredSessionId, storeSessionId } from './terminal-io';
 
 const STALE_RETRY_MS = 2000;
+/** Relógio da faixa de IA parada (BR3.1). A contagem vem da data dos arquivos, no servidor. */
+const FOLLOWING_TICK_MS = 30_000;
 
 export type GuideState =
   | { kind: 'loading' }
@@ -28,13 +33,32 @@ export type GuideActions = {
   send: (text: string, mode: 'execute' | 'paste') => Promise<SendResult>;
   openNewSession: () => Promise<void>;
   endSession: () => Promise<void>;
+  goToNextStage: () => Promise<void>;
+  dismissChanged: () => void;
 };
 
+function seenStateOf(view: GuideView) {
+  return { stageSlug: view.stage.slug, unit: view.stage.unit ?? '', mark: view.stage.mark };
+}
+
+function seenKeyOf(view: GuideView): string {
+  const { stageSlug, unit, mark } = seenStateOf(view);
+  return [view.intentId, stageSlug, unit, mark].join('|');
+}
+
 /** Estado da tela. Toda decisão vem do servidor, a partir dos arquivos do AI-DLC (BR4.2). */
-export function useGuide(): { state: GuideState; actions: GuideActions; loadError: string | null } {
+export function useGuide(): {
+  state: GuideState;
+  actions: GuideActions;
+  loadError: string | null;
+  changedNotice: string | null;
+} {
   const [state, setState] = useState<GuideState>({ kind: 'loading' });
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [changedNotice, setChangedNotice] = useState<string | null>(null);
   const viewRef = useRef<GuideView | null>(null);
+  const checkedSeenRef = useRef<string | null>(null);
+  const noticeOpenRef = useRef(false);
 
   const refresh = useCallback(async () => {
     try {
@@ -67,6 +91,14 @@ export function useGuide(): { state: GuideState; actions: GuideActions; loadErro
     return () => clearInterval(timer);
   }, [isStale, refresh]);
 
+  const moment = state.kind === 'guide' ? state.view.decision.moment : null;
+  const isFollowing = moment === 'following' || moment === 'revising';
+  useEffect(() => {
+    if (!isFollowing) return;
+    const timer = setInterval(() => void refresh(), FOLLOWING_TICK_MS);
+    return () => clearInterval(timer);
+  }, [isFollowing, refresh]);
+
   useEffect(() => {
     let cancelled = false;
     const start = async () => {
@@ -89,10 +121,39 @@ export function useGuide(): { state: GuideState; actions: GuideActions; loadErro
     };
   }, [refresh]);
 
+  // Compara só uma vez ao abrir. Depois disso, o que a pessoa vê na tela passa a ser o último visto.
+  const view = state.kind === 'guide' ? state.view : null;
+  const intentId = view?.intentId ?? null;
+  const seenKey = view ? seenKeyOf(view) : null;
+  useEffect(() => {
+    const current = viewRef.current;
+    if (!current || !seenKey || !intentId) return;
+    if (checkedSeenRef.current !== intentId) {
+      checkedSeenRef.current = intentId;
+      void fetchSeen(intentId).then((seen) => {
+        if (!seen) return;
+        if (seen.status === 'first_visit') void postSeen(intentId, seen.current);
+        if (seen.status === 'changed') {
+          noticeOpenRef.current = true;
+          setChangedNotice(seen.text);
+        }
+      });
+      return;
+    }
+    if (!noticeOpenRef.current) void postSeen(intentId, seenStateOf(current));
+  }, [seenKey, intentId]);
+
+  const dismissChanged = useCallback(() => {
+    const current = viewRef.current;
+    noticeOpenRef.current = false;
+    setChangedNotice(null);
+    if (current) void postSeen(current.intentId, seenStateOf(current));
+  }, []);
+
   const understood = useCallback(async () => {
-    const view = viewRef.current;
-    if (!view) return;
-    const updated = await postUnderstood(view.intentId, view.stage.slug);
+    const current = viewRef.current;
+    if (!current) return;
+    const updated = await postUnderstood(current.intentId, current.stage.stateSlug);
     if (updated) {
       viewRef.current = updated;
       setState({ kind: 'guide', view: updated });
@@ -103,14 +164,14 @@ export function useGuide(): { state: GuideState; actions: GuideActions; loadErro
 
   const send = useCallback(
     async (text: string, mode: 'execute' | 'paste'): Promise<SendResult> => {
-      const view = viewRef.current;
-      if (!view)
+      const current = viewRef.current;
+      if (!current)
         return { ok: false, status: 0, code: 'not_ready', message: 'O guia ainda não abriu.' };
       // O `commandId` nasce aqui, no clique de confirmação, e em nenhum outro lugar (BR5.1).
       const result = await postCommand({
         commandId: newCommandId(),
-        intentId: view.intentId,
-        stageSlug: view.stage.slug,
+        intentId: current.intentId,
+        stageSlug: current.stage.stateSlug,
         text,
         mode,
       });
@@ -131,5 +192,31 @@ export function useGuide(): { state: GuideState; actions: GuideActions; loadErro
     await refresh();
   }, [refresh]);
 
-  return { state, loadError, actions: { refresh, understood, send, openNewSession, endSession } };
+  /** Grava o reconhecimento em `.vibes/`. A etapa seguinte já vem dos arquivos do AI-DLC. */
+  const goToNextStage = useCallback(async () => {
+    const current = viewRef.current;
+    if (!current?.previousStage) return;
+    const updated = await postConclusionSeen(current.intentId, current.previousStage.slug);
+    if (updated) {
+      viewRef.current = updated;
+      setState({ kind: 'guide', view: updated });
+    } else {
+      await refresh();
+    }
+  }, [refresh]);
+
+  return {
+    state,
+    loadError,
+    changedNotice,
+    actions: {
+      refresh,
+      understood,
+      send,
+      openNewSession,
+      endSession,
+      goToNextStage,
+      dismissChanged,
+    },
+  };
 }

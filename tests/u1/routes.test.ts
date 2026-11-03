@@ -5,6 +5,11 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { POST as postCommand } from '@/app/api/commands/route';
 import { GET as getDemands } from '@/app/api/demands/route';
 import { GET as getGuide } from '@/app/api/demands/[intentId]/guide/route';
+import { GET as getArtifacts } from '@/app/api/demands/[intentId]/artifacts/route';
+import { POST as postReview } from '@/app/api/demands/[intentId]/artifacts/review/route';
+import { POST as postConclusion } from '@/app/api/demands/[intentId]/conclusion/route';
+import { GET as getSeen, POST as postSeen } from '@/app/api/demands/[intentId]/seen/route';
+import { GET as getTrail } from '@/app/api/demands/[intentId]/trail/route';
 import { POST as postUnderstood } from '@/app/api/demands/[intentId]/understood/route';
 import { GET as getEvents } from '@/app/api/events/route';
 import { POST as postInput } from '@/app/api/terminal/input/route';
@@ -119,6 +124,12 @@ describe('todas as rotas rejeitam Origin e Host de fora, sem efeito', () => {
     ['guide', 'GET', (request) => getGuide(request, paramsOf(INTENT_ID))],
     ['understood', 'POST', (request) => postUnderstood(request, paramsOf(INTENT_ID))],
     ['events', 'GET', getEvents],
+    ['artifacts', 'GET', (request) => getArtifacts(request, paramsOf(INTENT_ID))],
+    ['artifacts/review', 'POST', (request) => postReview(request, paramsOf(INTENT_ID))],
+    ['seen', 'GET', (request) => getSeen(request, paramsOf(INTENT_ID))],
+    ['seen', 'POST', (request) => postSeen(request, paramsOf(INTENT_ID))],
+    ['trail', 'GET', (request) => getTrail(request, paramsOf(INTENT_ID))],
+    ['conclusion', 'POST', (request) => postConclusion(request, paramsOf(INTENT_ID))],
   ];
 
   it.each(routes)('%s %s', async (_name, method, handler) => {
@@ -433,6 +444,8 @@ describe('/api/demands e guia', () => {
     const view = await guide();
     expect(view.stage).toEqual({
       slug: STAGE,
+      stateSlug: STAGE,
+      unit: null,
       name: 'Projeto funcional',
       number: '3.1',
       mark: 'in_progress',
@@ -443,7 +456,7 @@ describe('/api/demands e guia', () => {
 
     const construction = view.trail.find((phase) => phase.name === 'construction');
     expect(construction).toMatchObject({ label: 'Construção', isCurrent: true, done: 0 });
-    expect(construction?.stages[0]).toMatchObject({ slug: STAGE, status: 'now' });
+    expect(construction?.stages[0]).toMatchObject({ slug: STAGE, status: 'current' });
     const ideation = view.trail.find((phase) => phase.name === 'ideation');
     expect(ideation).toMatchObject({ done: 4, total: 4, isCurrent: false });
     expect(ideation?.stages.find((s) => s.slug === 'market-research')?.status).toBe('skipped');

@@ -1,5 +1,8 @@
+import type { ArtifactContent } from '@/aidlc/artifacts';
 import type { RepoHealth } from '@/core/types';
+import type { ArtifactList } from '@/web/artifact-service';
 import type { GuideView } from '@/web/guide-service';
+import type { SeenResponse } from '@/web/schemas';
 
 export type DemandsResponse = {
   repo: { health: RepoHealth; failedPath: string | null };
@@ -59,6 +62,94 @@ export async function fetchGuide(intentId: string): Promise<GuideView> {
   const response = await fetch(`/api/demands/${encodeURIComponent(intentId)}/guide`);
   if (!response.ok) throw new Error((await readFailure(response)).message);
   return readJson<GuideView>(response);
+}
+
+/** Reconhece a conclusão. Com a tela desatualizada, devolve `null`, e o guia relê os arquivos. */
+export async function postConclusionSeen(
+  intentId: string,
+  stageSlug: string,
+): Promise<GuideView | null> {
+  const response = await postJson(`/api/demands/${encodeURIComponent(intentId)}/conclusion`, {
+    stageSlug,
+  });
+  if (!response.ok) return null;
+  return readJson<GuideView>(response);
+}
+
+export type ArtifactsRequest = {
+  intentId: string;
+  stage: string;
+  unit: string | null;
+  consult: boolean;
+  path: string | null;
+};
+
+export type ArtifactsResult =
+  { kind: 'ok'; list: ArtifactList } | { kind: 'gone' } | { kind: 'failed'; message: string };
+
+export async function fetchArtifacts(request: ArtifactsRequest): Promise<ArtifactsResult> {
+  const params = new URLSearchParams({ stage: request.stage });
+  if (request.unit) params.set('unit', request.unit);
+  if (request.consult) params.set('consult', '1');
+  if (request.path) params.set('path', request.path);
+  const url = `/api/demands/${encodeURIComponent(request.intentId)}/artifacts?${params.toString()}`;
+  try {
+    const response = await fetch(url);
+    if (response.status === 404) return { kind: 'gone' };
+    if (!response.ok) return { kind: 'failed', message: (await readFailure(response)).message };
+    return { kind: 'ok', list: await readJson<ArtifactList>(response) };
+  } catch {
+    return { kind: 'failed', message: 'O painel não respondeu ao ler os arquivos.' };
+  }
+}
+
+export type ReviewResult =
+  | { kind: 'ok' }
+  | { kind: 'changed'; message: string; artifact: ArtifactContent }
+  | { kind: 'failed'; message: string };
+
+/** Marca como revisado, com o hash mostrado na tela. Um erro fica na própria linha, sem marcar. */
+export async function postReview(
+  intentId: string,
+  path: string,
+  contentHash: string,
+): Promise<ReviewResult> {
+  try {
+    const response = await postJson(
+      `/api/demands/${encodeURIComponent(intentId)}/artifacts/review`,
+      { path, contentHash },
+    );
+    if (response.ok) return { kind: 'ok' };
+    if (response.status === 409) {
+      const body = await readJson<{ message: string; artifact: ArtifactContent }>(response);
+      return { kind: 'changed', message: body.message, artifact: body.artifact };
+    }
+    return { kind: 'failed', message: (await readFailure(response)).message };
+  } catch {
+    return { kind: 'failed', message: 'O painel não respondeu. Tente marcar de novo.' };
+  }
+}
+
+/** Uma falha aqui só deixa de mostrar o aviso: o momento atual continua na tela. */
+export async function fetchSeen(intentId: string): Promise<SeenResponse | null> {
+  try {
+    const response = await fetch(`/api/demands/${encodeURIComponent(intentId)}/seen`);
+    if (!response.ok || response.status === 204) return null;
+    return await readJson<SeenResponse>(response);
+  } catch {
+    return null;
+  }
+}
+
+export async function postSeen(
+  intentId: string,
+  state: { stageSlug: string; unit: string; mark: string },
+): Promise<void> {
+  try {
+    await postJson(`/api/demands/${encodeURIComponent(intentId)}/seen`, state);
+  } catch {
+    // Sem gravar, o aviso só aparece de novo ao reabrir. Nada na tela depende disso.
+  }
 }
 
 export async function postUnderstood(

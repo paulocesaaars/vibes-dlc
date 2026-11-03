@@ -1,119 +1,10 @@
-import { STEP_LABELS, type GuideArt } from '@/guide/moment-content';
-import type { TrailPhase } from '@/web/guide-service';
-
-const CHECK_PATH = 'M20 6 9 17l-5-5';
-
-function StageDot({
-  status,
-  number,
-}: {
-  status: TrailPhase['stages'][number]['status'];
-  number: string;
-}) {
-  if (status === 'done') {
-    return (
-      <span className="dot d-done" aria-hidden="true">
-        <svg
-          width="18"
-          height="18"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="4"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        >
-          <path d={CHECK_PATH} />
-        </svg>
-      </span>
-    );
-  }
-  if (status === 'now') {
-    return (
-      <span className="dot d-now" aria-hidden="true">
-        {number}
-      </span>
-    );
-  }
-  if (status === 'skipped') return <span className="dot d-skip" aria-hidden="true" />;
-  return (
-    <span className="dot d-lock" aria-hidden="true">
-      <svg
-        width="15"
-        height="15"
-        viewBox="0 0 16 16"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="2"
-      >
-        <rect x="3" y="7" width="10" height="7" rx="1.5" />
-        <path d="M5 7V5a3 3 0 0 1 6 0v2" />
-      </svg>
-    </span>
-  );
-}
-
-const STATUS_TEXT = {
-  done: 'concluída',
-  now: 'etapa atual',
-  pending: 'ainda não aberta',
-  skipped: 'fora do plano',
-} as const;
-
-/** Trilha mínima de U1, com a aparência do protótipo. A trilha completa vem em U2. */
-export function Trail({ phases }: { phases: TrailPhase[] }) {
-  return (
-    <nav
-      className="rail"
-      aria-label="Trilha de etapas"
-      data-testid="guide-trail"
-      style={{ display: 'flex', flexDirection: 'column', gap: 8 }}
-    >
-      {phases.map((phase) => (
-        <div key={phase.name} style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-          <div className={phase.isCurrent ? 'ph ph-on' : 'ph'}>
-            <span>{phase.label}</span>
-            <span>
-              {phase.done}/{phase.total}
-            </span>
-          </div>
-          {phase.isCurrent ? (
-            <ul style={{ margin: 0, padding: '4px 0 0', listStyle: 'none' }}>
-              {phase.stages.map((stage) => (
-                <li
-                  key={stage.slug}
-                  className="node"
-                  aria-current={stage.status === 'now' ? 'step' : undefined}
-                >
-                  <StageDot status={stage.status} number={stage.number} />
-                  <span
-                    className={
-                      stage.status === 'now'
-                        ? 'n-now'
-                        : stage.status === 'skipped'
-                          ? 'n-skip'
-                          : stage.status === 'pending'
-                            ? 'n-pend'
-                            : undefined
-                    }
-                    style={{ minWidth: 0 }}
-                  >
-                    {stage.status === 'now' ? <span className="you">Você está aqui</span> : null}
-                    {stage.name}
-                    <span style={{ position: 'absolute', left: -9999 }}>
-                      {' '}
-                      ({STATUS_TEXT[stage.status]})
-                    </span>
-                  </span>
-                </li>
-              ))}
-            </ul>
-          ) : null}
-        </div>
-      ))}
-    </nav>
-  );
-}
+import {
+  IDLE_OTHER_CLI_TEXT,
+  idleNoticeText,
+  STEP_LABELS,
+  type GuideArt,
+} from '@/guide/moment-content';
+import type { GuideView } from '@/web/guide-service';
 
 export function StepBar({ stepNumber }: { stepNumber: number }) {
   if (stepNumber === 0) return null;
@@ -156,7 +47,13 @@ export function Say({ art, eyebrow, title, text, point }: SayProps) {
     <div className="say" role="status">
       {/* As artes são arquivos locais em WebP animado, sem a otimização de imagem do Next. */}
       {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img className="art art-still" src={art.src} alt={art.alt} width={216} height={216} />
+      <img
+        className={art.animated ? 'art' : 'art art-still'}
+        src={art.src}
+        alt={art.alt}
+        width={216}
+        height={216}
+      />
       <div className="bubble">
         <div className="eyebrow">{eyebrow}</div>
         <strong
@@ -170,7 +67,7 @@ export function Say({ art, eyebrow, title, text, point }: SayProps) {
         <span data-testid="guide-text">{text}</span>
         {point ? (
           <div>
-            <span className="point">
+            <span className="point" data-testid="guide-point">
               {point}
               <svg
                 aria-hidden="true"
@@ -290,5 +187,216 @@ export function SendCard(props: SendCardProps) {
         </div>
       ) : null}
     </div>
+  );
+}
+
+function WarningIcon() {
+  return (
+    <svg
+      aria-hidden="true"
+      width="18"
+      height="18"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="3"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      style={{ flex: 'none', marginTop: 3 }}
+    >
+      <circle cx="12" cy="12" r="9" />
+      <path d="M12 8v4M12 16h.01" />
+    </svg>
+  );
+}
+
+/** Aviso ao reabrir o painel, com Entendi, e o momento atual logo abaixo (BR7.1). */
+export function ChangedNotice({ text, onDismiss }: { text: string; onDismiss: () => void }) {
+  return (
+    <div
+      className="card pop"
+      role="status"
+      data-testid="guide-changed-notice"
+      style={{
+        padding: '12px 14px',
+        display: 'flex',
+        flexWrap: 'wrap',
+        alignItems: 'center',
+        gap: '8px 14px',
+        background: 'var(--wash)',
+      }}
+    >
+      <span style={{ flex: '1 1 260px' }}>
+        <strong style={{ fontWeight: 900 }}>Enquanto o painel estava fechado:</strong> {text}
+      </span>
+      <button
+        className="btn2"
+        type="button"
+        data-testid="guide-changed-dismiss-button"
+        onClick={onDismiss}
+      >
+        Entendi
+      </button>
+    </div>
+  );
+}
+
+type IdleNoticeProps = {
+  minutes: number;
+  canResume: boolean;
+  resuming: boolean;
+  onResume: () => void;
+};
+
+/** Faixa de IA parada. Nunca reabre o terminal sozinha nem envia nada (BR3.3). */
+export function IdleNotice({ minutes, canResume, resuming, onResume }: IdleNoticeProps) {
+  return (
+    <div
+      className="card pop"
+      role="status"
+      data-testid="guide-idle-notice"
+      style={{
+        padding: '12px 14px',
+        display: 'flex',
+        flexWrap: 'wrap',
+        alignItems: 'center',
+        gap: '8px 14px',
+        background: 'var(--wash)',
+      }}
+    >
+      <span style={{ flex: '1 1 260px', display: 'flex', gap: 8 }}>
+        <WarningIcon />
+        <span data-testid="guide-idle-text">
+          {idleNoticeText(minutes)}
+          {canResume ? null : ` ${IDLE_OTHER_CLI_TEXT}`}
+        </span>
+      </span>
+      {canResume && !resuming ? (
+        <button className="btn2" type="button" data-testid="guide-resume-button" onClick={onResume}>
+          Retomar
+        </button>
+      ) : null}
+    </div>
+  );
+}
+
+const RAY_COLORS = ['#FF385C', '#FFD1DA', '#E00B41', '#FFF1B8'];
+const RAYS = Array.from({ length: 14 }, (_, index) => ({
+  angle: Math.round((index * 360) / 14),
+  color: RAY_COLORS[index % 4],
+  delay: `${(index % 4) * 40}ms`,
+}));
+
+/** Conclusão e trilha concluída: progresso, artefatos revisados e, se faltou algum, um aviso (BR6.1). */
+export function ConclusionCard({ view }: { view: GuideView }) {
+  const { content, progress, conclusion } = view;
+  const scale = progress.total > 0 ? (progress.done / progress.total).toFixed(3) : '0';
+  return (
+    <div
+      data-testid="guide-conclusion"
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        gap: 14,
+        paddingTop: 12,
+        textAlign: 'center',
+      }}
+    >
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img className="art-cele" src={content.art.src} alt={content.art.alt} />
+      <div className="burst" aria-hidden="true" style={{ width: '100%', top: -160 }}>
+        {RAYS.map((ray) => (
+          <span key={ray.angle} className="b-ray" style={{ transform: `rotate(${ray.angle}deg)` }}>
+            <span className="b-bit" style={{ background: ray.color, animationDelay: ray.delay }} />
+          </span>
+        ))}
+      </div>
+      <h2 id="guide-instruction" className="big pop" tabIndex={-1} data-testid="guide-instruction">
+        {content.title}
+      </h2>
+      <p data-testid="guide-text" style={{ margin: 0 }}>
+        {content.text}
+      </p>
+      <div
+        style={{
+          width: '100%',
+          maxWidth: 420,
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 6,
+        }}
+      >
+        <span className="track">
+          <span className="track-fill" style={{ transform: `scaleX(${scale})` }} />
+        </span>
+        <span data-testid="guide-progress" style={{ fontWeight: 800 }}>
+          {progress.done} de {progress.total} etapas aprovadas nesta demanda
+        </span>
+      </div>
+      {conclusion ? (
+        <div
+          className="card pop"
+          style={{
+            padding: '14px 18px',
+            textAlign: 'left',
+            width: '100%',
+            maxWidth: 520,
+            boxSizing: 'border-box',
+            animationDelay: '180ms',
+          }}
+        >
+          <strong style={{ fontWeight: 900, display: 'block' }}>{conclusion.review}</strong>
+          <span
+            data-testid="guide-conclusion-note"
+            data-warning={conclusion.isWarning}
+            style={{ color: 'var(--gray)' }}
+          >
+            {conclusion.note}
+          </span>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+const MODE_TEXT = { execute: 'executado', paste: 'colado' } as const;
+
+/** O histórico de U2: a aba própria vem em U3. O texto do comando aparece como texto. */
+export function SentCommands({ commands }: { commands: GuideView['sentCommands'] }) {
+  return (
+    <section
+      className="fade"
+      data-testid="guide-sent-commands"
+      style={{ display: 'flex', flexDirection: 'column', gap: 2 }}
+    >
+      <h2 className="eyebrow" style={{ margin: '0 0 8px' }}>
+        Comandos enviados pelo painel
+      </h2>
+      {commands.length === 0 ? (
+        <p style={{ margin: 0, color: 'var(--gray)' }}>Nenhum comando enviado pelo painel.</p>
+      ) : null}
+      {commands.map((command) => (
+        <div
+          key={command.commandId}
+          className="fade"
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 3,
+            padding: '10px 0',
+            borderTop: '2px solid var(--line)',
+          }}
+        >
+          <span style={{ fontSize: 14, color: 'var(--gray)' }}>
+            {new Date(command.sentAt).toLocaleString('pt-BR')} · {command.stageName} ·{' '}
+            {MODE_TEXT[command.mode]}
+          </span>
+          <code className="mono" style={{ fontSize: 13, overflowWrap: 'anywhere' }}>
+            {command.text}
+          </code>
+        </div>
+      ))}
+    </section>
   );
 }

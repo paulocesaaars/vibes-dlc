@@ -8,11 +8,23 @@ export type StageMark =
 export type CommandSent = 'none' | 'pasted' | 'executed';
 export type SessionStatus = 'alive' | 'dead' | 'unavailable';
 export type CliKind = 'claude_code' | 'other';
+export type PositionSource = 'state' | 'audit';
 
 export type SignalSnapshot = {
   repo: { health: RepoHealth; failedPath: string | null };
   demand: { intentId: string; isActive: boolean; activeIntentId: string | null };
-  stage: { slug: string; mark: StageMark; lastEvent: string | null; hasNextStage: boolean };
+  stage: {
+    slug: string;
+    mark: StageMark;
+    lastEvent: string | null;
+    hasNextStage: boolean;
+    unit: string | null;
+    gateApproved: boolean;
+    gateRejected: boolean;
+  };
+  /** A etapa anterior à atual, na ordem do plano, base do momento `conclusion`. */
+  previous: { slug: string; gateApproved: boolean; conclusionSeen: boolean } | null;
+  position: { source: PositionSource };
   signals: { openQuestions: number | 'unavailable'; minutesSinceLastChange: number };
   guide: {
     understood: boolean;
@@ -24,9 +36,30 @@ export type SignalSnapshot = {
   preferences: { cliKind: CliKind };
 };
 
-export type Moment = 'failure' | 'session_dead' | 'understand' | 'send' | 'pasted' | 'following';
-export type Turn = 'person' | 'ai';
-export type PrimaryAction = 'none' | 'retry' | 'new_session' | 'understood' | 'send';
+export type Moment =
+  | 'failure'
+  | 'not_active'
+  | 'session_dead'
+  | 'conclusion'
+  | 'trail_done'
+  | 'review'
+  | 'approve'
+  | 'question'
+  | 'revising'
+  | 'following'
+  | 'pasted'
+  | 'send'
+  | 'understand';
+export type Turn = 'person' | 'ai' | 'guide';
+export type PrimaryAction =
+  | 'none'
+  | 'retry'
+  | 'activate'
+  | 'new_session'
+  | 'next_stage'
+  | 'mark_reviewed'
+  | 'understood'
+  | 'send';
 export type SendBlockedReason =
   'repo_failure' | 'not_active' | 'session_dead' | 'other_cli' | 'not_send_moment';
 
@@ -36,4 +69,8 @@ export type GuideDecision = {
   primaryAction: PrimaryAction;
   canSend: boolean;
   sendBlockedReason: SendBlockedReason | null;
+  showIdleNotice: boolean;
 };
+
+export type ReviewStatus = 'pending' | 'reviewed' | 'changed';
+export type TrailStatus = 'done' | 'current' | 'previous' | 'blocked' | 'skipped';

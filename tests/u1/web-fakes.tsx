@@ -12,7 +12,14 @@ export function guideView(
 ): GuideView {
   const primary: Record<Moment, GuideDecision['primaryAction']> = {
     failure: 'retry',
+    not_active: 'activate',
     session_dead: 'new_session',
+    conclusion: 'next_stage',
+    trail_done: 'none',
+    review: 'mark_reviewed',
+    approve: 'none',
+    question: 'none',
+    revising: 'none',
     understand: 'understood',
     send: 'send',
     pasted: 'none',
@@ -24,6 +31,7 @@ export function guideView(
     primaryAction: primary[moment],
     canSend: moment === 'send',
     sendBlockedReason: moment === 'send' ? null : 'not_send_moment',
+    showIdleNotice: false,
   };
   const about = stageContent('functional-design', 'aidlc-architect-agent');
   return {
@@ -32,10 +40,20 @@ export function guideView(
     scope: 'mvp',
     stage: {
       slug: 'functional-design',
+      stateSlug: 'functional-design',
       name: 'Projeto funcional',
       number: '3.1',
       mark: 'in_progress',
+      unit: null,
     },
+    position: { source: 'state' },
+    artifacts: { total: 0, reviewed: 0 },
+    progress: { done: 2, total: 5 },
+    nextStage: { slug: 'nfr-design', name: 'Projeto não funcional' },
+    conclusion: null,
+    sentCommands: [],
+    previousStage: null,
+    minutesSinceLastChange: 0,
     decision,
     content: momentContent(decision, {
       stageName: 'Projeto funcional',
@@ -54,7 +72,13 @@ export function guideView(
         total: 1,
         isCurrent: false,
         stages: [
-          { slug: 'intent-capture', name: 'Captura da intenção', number: '1.1', status: 'done' },
+          {
+            slug: 'intent-capture',
+            name: 'Captura da intenção',
+            number: '1.1',
+            status: 'done',
+            unit: null,
+          },
         ],
       },
       {
@@ -64,10 +88,22 @@ export function guideView(
         total: 3,
         isCurrent: true,
         stages: [
-          { slug: 'antes', name: 'Etapa concluída', number: '3.0', status: 'done' },
-          { slug: 'functional-design', name: 'Projeto funcional', number: '3.1', status: 'now' },
-          { slug: 'nfr-design', name: 'Projeto não funcional', number: '3.3', status: 'pending' },
-          { slug: 'pulada', name: 'Etapa pulada', number: '3.4', status: 'skipped' },
+          { slug: 'antes', name: 'Etapa concluída', number: '3.0', status: 'done', unit: null },
+          {
+            slug: 'functional-design',
+            name: 'Projeto funcional',
+            number: '3.1',
+            status: 'current',
+            unit: null,
+          },
+          {
+            slug: 'nfr-design',
+            name: 'Projeto não funcional',
+            number: '3.3',
+            status: 'blocked',
+            unit: null,
+          },
+          { slug: 'pulada', name: 'Etapa pulada', number: '3.4', status: 'skipped', unit: null },
         ],
       },
     ],

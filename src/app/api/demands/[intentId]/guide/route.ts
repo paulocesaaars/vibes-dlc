@@ -14,5 +14,5 @@ export async function GET(request: Request, context: RouteContext): Promise<Resp
   if (rejected) return rejected;
 
   const { intentId } = await context.params;
-  return jsonResponse(buildGuideView(runtime, intentId));
+  return jsonResponse(await buildGuideView(runtime, intentId));
 }

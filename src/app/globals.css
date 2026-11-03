@@ -260,6 +260,11 @@ button {
 .band-wait {
   background: var(--wash);
 }
+.band-ok {
+  background: var(--okSoft);
+  border-top-color: var(--okSoft);
+  color: var(--ok);
+}
 .band-txt {
   flex: 1 1 220px;
   font-weight: 700;
@@ -305,6 +310,14 @@ button {
 }
 .art-still {
   animation: float 3.2s ease-in-out infinite;
+}
+.art-cele {
+  display: block;
+  width: 420px;
+  max-width: 100%;
+  height: auto;
+  mix-blend-mode: multiply;
+  animation: pop 0.42s cubic-bezier(0.2, 1.4, 0.4, 1) both;
 }
 .bubble {
   position: relative;
@@ -421,6 +434,9 @@ button {
   color: var(--ink);
   text-align: left;
 }
+.ph:hover {
+  background: var(--line);
+}
 .ph-on {
   background: var(--furLight);
   color: #222222;
@@ -439,6 +455,31 @@ button {
   color: var(--ink);
   line-height: 1.2;
   animation: fade 0.3s ease-out both;
+}
+.node:disabled {
+  cursor: default;
+  opacity: 1;
+}
+.node:not(:disabled):hover .dot {
+  transform: scale(1.08);
+}
+.node-unit {
+  display: block;
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--gray);
+  overflow-wrap: anywhere;
+}
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
 }
 .dot {
   flex: none;
@@ -480,6 +521,11 @@ button {
 }
 .d-lock {
   background: var(--line);
+  color: var(--gray);
+}
+.d-prev {
+  background: transparent;
+  border: 2px solid var(--faded);
   color: var(--gray);
 }
 .d-skip {
@@ -540,6 +586,128 @@ button {
   background: var(--wash);
   font-weight: 900;
   font-size: 15px;
+}
+.track {
+  display: block;
+  height: 10px;
+  border-radius: 12px;
+  background: var(--line);
+  overflow: hidden;
+}
+.track-fill {
+  display: block;
+  height: 10px;
+  border-radius: 12px;
+  background: var(--furDark);
+  transform-origin: left;
+  transition: transform 0.7s cubic-bezier(0.2, 1, 0.4, 1);
+}
+.pillb {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 36px;
+  padding: 0 12px;
+  background: var(--paper);
+  border: 2px solid var(--line);
+  border-radius: 12px;
+  font-size: 14px;
+  font-weight: 800;
+  color: var(--ink);
+  animation: fade 0.3s ease-out both;
+  transition: background-color 0.15s;
+}
+.pillb:hover:not(:disabled) {
+  background: var(--wash);
+}
+.pillb:disabled {
+  cursor: default;
+}
+.pillb-on {
+  border-color: var(--blue);
+  color: var(--blueText);
+}
+.pillb-ok,
+.pillb-ok:hover:not(:disabled) {
+  background: var(--okSoft);
+  border-color: var(--okSoft);
+  color: var(--ok);
+}
+.pillb-ok.pillb-on {
+  border-color: var(--ok);
+}
+.burst {
+  position: relative;
+  height: 0;
+}
+.b-ray {
+  position: absolute;
+  left: 50%;
+  top: 0;
+  width: 0;
+  height: 0;
+}
+.b-bit {
+  position: absolute;
+  left: -6px;
+  top: -6px;
+  width: 12px;
+  height: 12px;
+  border-radius: 4px;
+  animation: ray 0.95s ease-out both;
+}
+@keyframes ray {
+  from {
+    transform: translateY(0) scale(0.2);
+    opacity: 1;
+  }
+  to {
+    transform: translateY(-170px) rotate(160deg) scale(1);
+    opacity: 0;
+  }
+}
+.big {
+  margin: 0;
+  font-size: 48px;
+  font-weight: 900;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+  color: var(--greenText);
+}
+.big:focus {
+  outline: none;
+}
+.big:focus-visible {
+  outline: 3px solid var(--blue);
+  outline-offset: 2px;
+}
+.hint {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 48px;
+  box-sizing: border-box;
+  padding: 9px 16px;
+  background: var(--mint);
+  color: var(--night);
+  font-family: Nunito, 'Nunito Sans', system-ui, sans-serif;
+  font-size: 15px;
+  font-weight: 800;
+  animation: fade 0.3s ease-out both;
+}
+.hint svg {
+  flex: none;
+  animation: bob 1s ease-in-out infinite;
+}
+@keyframes bob {
+  50% {
+    transform: translateY(3px);
+  }
+}
+.notice-warn {
+  margin: 0;
+  font-weight: 800;
+  color: var(--ink);
 }
 .notice-error {
   margin: 0;
@@ -632,6 +800,9 @@ button {
   }
   .term {
     height: 480px;
+  }
+  .big {
+    font-size: 36px;
   }
 }
 @media (prefers-reduced-motion: reduce) {

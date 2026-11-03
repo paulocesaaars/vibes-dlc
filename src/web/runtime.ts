@@ -2,10 +2,13 @@ import path from 'node:path';
 import { AidlcReader } from '@/aidlc/reader';
 import { type AppConfig, loadConfig } from '@/config/app-config';
 import { findShell } from '@/config/shell-lookup';
+import { ArtifactReviewRepo } from '@/db/artifact-review-repo';
+import { DemandSeenRepo } from '@/db/demand-seen-repo';
 import { GuideProgressRepo } from '@/db/guide-progress-repo';
 import { SentCommandRepo } from '@/db/sent-command-repo';
 import { prepareStorage } from '@/db/storage';
 import { getTerminalManager } from '@/terminal/registry';
+import { killProcessTree } from '@/terminal/stale-shell';
 import type { TerminalManager } from '@/terminal/terminal-manager';
 
 export type Runtime = {
@@ -14,6 +17,8 @@ export type Runtime = {
   terminal: TerminalManager;
   commands: SentCommandRepo;
   progress: GuideProgressRepo;
+  reviews: ArtifactReviewRepo;
+  seen: DemandSeenRepo;
 };
 
 const RUNTIME_KEY = Symbol.for('vibes-dlc.runtime');
@@ -30,7 +35,13 @@ function createRuntime(): Runtime {
   process.once('exit', () => db.close());
   return {
     config,
-    reader: new AidlcReader(config.repoRoot),
+    // O `aidlc` não conhece o `terminal`: quem liga os dois é este ponto de montagem.
+    reader: new AidlcReader(
+      config.repoRoot,
+      Date.now,
+      {},
+      { env: process.env, killTree: (pid) => killProcessTree(pid) },
+    ),
     terminal: getTerminalManager(() => ({
       findShell: () => findShell(),
       cwd: config.repoRoot,
@@ -38,6 +49,8 @@ function createRuntime(): Runtime {
     })),
     commands: new SentCommandRepo(db),
     progress: new GuideProgressRepo(db),
+    reviews: new ArtifactReviewRepo(db),
+    seen: new DemandSeenRepo(db),
   };
 }
 

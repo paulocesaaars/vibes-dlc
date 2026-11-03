@@ -14,6 +14,7 @@ type TerminalPanelProps = {
   title: string;
   collapsed: boolean;
   highlight: boolean;
+  hint?: string | null;
   onToggle: () => void;
   onBackToGuide: () => void;
   onEndSession: () => void;
@@ -281,6 +282,24 @@ export const TerminalPanel = forwardRef<TerminalPanelHandle, TerminalPanelProps>
             ) : null}
           </div>
         )}
+        {props.hint && !collapsed ? (
+          <div className="hint" role="status" data-testid="terminal-hint">
+            <svg
+              aria-hidden="true"
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="3"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M12 5v14M6 13l6 6 6-6" />
+            </svg>
+            {props.hint}
+          </div>
+        ) : null}
         <div
           ref={screenRef}
           className="term-screen"
