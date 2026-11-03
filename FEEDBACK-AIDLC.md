@@ -41,6 +41,36 @@ Entradas mais recentes primeiro, neste formato:
 ```
 
 ### 2026-11-03 · code-generation · sinal
+- **Observado:** `aidlc engine log answers` não é só de leitura. Quando herda a identificação de um chat, ele cria `aidlc/.aidlc-sessions/<id>.binding.json`. O comando também prefere `AIDLC_PROJECT_DIR` e `CLAUDE_PROJECT_DIR` à pasta atual.
+- **Evidência:** a prova de U2 falhou com esse arquivo no `git status` da cópia de teste. Relatado em `.claude/tools/aidlc-lib.ts` (`writeSessionBinding`, `claudeNamedChat` e `resolveProjectDir`).
+- **Efeito no produto:** o guia chama o comando com uma lista permitida de variáveis, e com `AIDLC_PROJECT_DIR` fixo. A resolução de sessão do `aidlc` também olha `CODEX_THREAD_ID`, `CODEX_SESSION_ID`, `AIDLC_SESSION_OVERRIDE` e a ancestralidade de processos. Com a lista permitida, a prova não viu nada gravado em `aidlc/`. O `TDD.md` deve registrar isso.
+- **Situação:** pendente
+
+### 2026-11-03 · code-generation · sinal
+- **Observado:** `aidlc engine log answers --stage inexistente` devolve `"open":[]`, igual a uma etapa real sem perguntas. `open` vem de `DECISION_RECORDED` sem `QUESTION_ANSWERED`, o que a prova confirmou com o `aidlc` real, em 820 ms.
+- **Evidência:** relato da construção de U2 e `handleAnswers` em `aidlc-log.ts`.
+- **Efeito no produto:** um nome de etapa errado parece "sem perguntas". O guia deve usar só etapas lidas do registro.
+- **Situação:** aplicado em `src/aidlc/open-questions.ts`, conforme o resumo de U2
+
+### 2026-11-03 · code-generation · sinal
+- **Observado:** o `UNIT_STARTED` de `code-generation` só é gravado depois da construção, em vez de no início. Enquanto o código é gerado, o último evento de Unidade é o da etapa anterior. Um `GATE_APPROVED` de checkpoint traz `**Unit**` e `**Stages**`, e não aprova a etapa.
+- **Evidência:** `audit/`: em U1, `PLAN_APPROVAL_RECORDED` vem cerca de 500 linhas antes do `UNIT_STARTED`. Em U2, o último evento de Unidade antes da construção foi `UNIT_SKIPPED` de `infrastructure-design`.
+- **Efeito no produto:** durante a geração de código, o guia mostra a etapa anterior. Um sinal melhor pode ser `PLAN_APPROVAL_RECORDED`. Isso pede uma decisão.
+- **Situação:** aguardando decisão
+
+### 2026-11-03 · code-generation · divergência
+- **Observado:** a aprovação de um gate marca `[x]`, põe `[-]` na etapa seguinte e atualiza `**Current Stage**` de uma vez. Por isso, a etapa atual quase nunca está em `[x]`, e a conclusão descrita em AC4.3.1 e AC4.3.2 quase nunca apareceria.
+- **Evidência:** tabela de momentos de `construction/u2-guide-flow/functional-design/functional-spec.md`, linha 4, e o sinal de aprovação registrado na tabela de perguntas em aberto deste arquivo.
+- **Efeito no produto:** por decisão da pessoa, a conclusão vem da etapa anterior: `[x]` com `GATE_APPROVED`, e a etapa atual sem comando, sem artefatos e sem pergunta. Falta ver na próxima etapa real se a conclusão aparece a tempo quando a IA segue sozinha. O efeito ainda precisa entrar no `PRD.md`, com o aval da pessoa.
+- **Situação:** aplicado em `functional-spec.md` de U2 e em `src/core/decide-moment.ts`; confirmação em execução real pendente
+
+### 2026-11-03 · nfr-requirements · sinal
+- **Observado:** no Windows, o `aidlc` instalado é um `aidlc.cmd`, que o Node.js não executa sem passar pelo `cmd.exe`. Um leitor que chame `aidlc engine log answers` de forma direta falha sempre, sem erro visível.
+- **Evidência:** revisão de U2, com `execFile('aidlc')` terminando em `ENOENT` e `execFile('aidlc.cmd')` em `EINVAL`. O mesmo comando leva 0,35 s no Git Bash.
+- **Efeito no produto:** o `TDD.md` deve registrar como o guia chama os comandos de leitura do AI-DLC, em `nfr-requirements/tech-stack-decisions.md` de U2.
+- **Situação:** pendente
+
+### 2026-11-03 · code-generation · sinal
 - **Observado:** na Construção por Unidade, o `aidlc-state.md` não acompanha o trabalho real. Durante a geração de código de U1, ele continuou mostrando a etapa de design funcional, sem atualizar a data.
 - **Evidência:** conferido em `aidlc-state.md` depois da construção: `**Current Stage**: functional-design`, `- [-] functional-design` e `- [ ] code-generation`, com `Last Updated` em 2026-11-03T16:12:36Z, antes de começar o código.
 - **Efeito no produto:** ler só a marca da etapa pode mostrar a etapa errada durante a Construção. U2 precisa de outro sinal, como os eventos `UNIT_STARTED` e `UNIT_COMPLETED` do `audit/`, e o `TDD.md` deve registrar isso.
