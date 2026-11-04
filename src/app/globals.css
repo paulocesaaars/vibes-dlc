@@ -813,3 +813,115 @@ button {
     transition: none !important;
   }
 }
+
+/* Tela Personalizar */
+.customize {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.cz-columns {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+.cz-moments {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1 1 220px;
+}
+.cz-moments button {
+  width: 100%;
+  text-align: left;
+  min-height: 40px;
+  padding: 0 12px;
+  border: 2px solid var(--line);
+  background: var(--paper);
+  color: var(--ink);
+  border-radius: 12px;
+  font-weight: 700;
+}
+.cz-moments button[aria-pressed='true'] {
+  border-color: var(--ink);
+  background: var(--wash);
+}
+.cz-preview {
+  flex: 1 1 260px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px;
+  border: 2px solid var(--line);
+  border-radius: 12px;
+  background: var(--wash);
+}
+.cz-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.cz-field input[type='text'],
+.cz-field textarea {
+  font: inherit;
+  padding: 8px 10px;
+  border: 2px solid var(--line);
+  border-radius: 8px;
+  background: var(--paper);
+  color: var(--ink);
+}
+.cz-colors {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.cz-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+}
+.cz-row label {
+  flex: 0 0 150px;
+  font-weight: 700;
+}
+.cz-row input[type='text'] {
+  width: 110px;
+  font: inherit;
+  padding: 6px 8px;
+  border: 2px solid var(--line);
+  border-radius: 8px;
+  background: var(--paper);
+  color: var(--ink);
+}
+.cz-row input[aria-invalid='true'] {
+  border-color: #c13515;
+}
+.cz-note,
+.cz-warning {
+  flex: 1 1 100%;
+  margin: 0;
+  font-size: 14px;
+}
+.cz-warning {
+  color: #8a4b00;
+  font-weight: 700;
+}
+.cz-actions {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.cz-skeleton {
+  min-height: 160px;
+  border-radius: 12px;
+  background: var(--wash);
+  color: var(--gray);
+  padding: 16px;
+}

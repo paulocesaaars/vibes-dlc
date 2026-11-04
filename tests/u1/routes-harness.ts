@@ -2,7 +2,13 @@ import path from 'node:path';
 import { AidlcReader } from '@/aidlc/reader';
 import type { AppConfig } from '@/config/app-config';
 import { findShell, type ShellLookup } from '@/config/shell-lookup';
+import {
+  CustomizationService,
+  createCustomizationState,
+} from '@/customization/customization-service';
+import { CustomizationItemRepo } from '@/db/customization-item-repo';
 import { ArtifactReviewRepo } from '@/db/artifact-review-repo';
+import { ArtifactNoteRepo } from '@/db/artifact-note-repo';
 import type { Database } from '@/db/database';
 import { DemandSeenRepo } from '@/db/demand-seen-repo';
 import { GuideProgressRepo } from '@/db/guide-progress-repo';
@@ -22,6 +28,8 @@ export type Harness = {
   repo: AidlcRepo;
   db: Database;
   dispose: () => void;
+  /** Salva a escolha de Sua IA como a tela faz: dentro de uma visita. */
+  setCliKind: (kind: 'claude_code' | 'other') => Promise<void>;
 };
 
 type HarnessOptions = {
@@ -43,6 +51,7 @@ export function createHarness(options: HarnessOptions = {}): Harness {
     publicHost: null,
     dbPath,
     vibesDir,
+    mediaDir: path.join(vibesDir, 'media'),
     shell,
     repoRoot: repo.root,
     exposed: false,
@@ -56,12 +65,18 @@ export function createHarness(options: HarnessOptions = {}): Harness {
     spawnPty: options.spawnPty,
   });
   const runtime: Runtime = {
+    customization: new CustomizationService({
+      repo: new CustomizationItemRepo(db),
+      mediaDir: path.join(vibesDir, 'media'),
+      state: createCustomizationState(),
+    }),
     config,
     reader: new AidlcReader(repo.root, Date.now, { pollIntervalMs: 50, debounceMs: 10 }),
     terminal,
     commands: new SentCommandRepo(db),
     progress: new GuideProgressRepo(db),
     reviews: new ArtifactReviewRepo(db),
+    notes: new ArtifactNoteRepo(db),
     seen: new DemandSeenRepo(db),
   };
   installRuntime(runtime);
@@ -69,6 +84,11 @@ export function createHarness(options: HarnessOptions = {}): Harness {
     runtime,
     repo,
     db,
+    setCliKind: async (kind) => {
+      const { visitId } = await runtime.customization.openVisit();
+      await runtime.customization.put(visitId, { cliKind: kind });
+      await runtime.customization.done(visitId);
+    },
     dispose: () => {
       terminal.shutdown();
       db.close();

@@ -5,6 +5,7 @@ import {
   type GuideArt,
 } from '@/guide/moment-content';
 import type { GuideView } from '@/web/guide-service';
+import { MomentArt } from './moment-art';
 
 export function StepBar({ stepNumber }: { stepNumber: number }) {
   if (stepNumber === 0) return null;
@@ -45,15 +46,7 @@ export type SayProps = {
 export function Say({ art, eyebrow, title, text, point }: SayProps) {
   return (
     <div className="say" role="status">
-      {/* As artes são arquivos locais em WebP animado, sem a otimização de imagem do Next. */}
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img
-        className={art.animated ? 'art' : 'art art-still'}
-        src={art.src}
-        alt={art.alt}
-        width={216}
-        height={216}
-      />
+      <MomentArt art={art} />
       <div className="bubble">
         <div className="eyebrow">{eyebrow}</div>
         <strong
@@ -125,6 +118,8 @@ type SendCardProps = {
   original: string;
   issue: string | null;
   failure: string | null;
+  /** Com Outra CLI, o comando é só uma referência para ler (BR6.2). */
+  referenceOnly: boolean;
   onChange: (value: string) => void;
   onReset: () => void;
 };
@@ -139,7 +134,7 @@ export function SendCard(props: SendCardProps) {
     >
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: '2px 10px', alignItems: 'baseline' }}>
         <label htmlFor="cmd" style={{ fontWeight: 800 }}>
-          Comando que vai para a sua IA
+          {props.referenceOnly ? 'Comando de referência' : 'Comando que vai para a sua IA'}
         </label>
         <span data-testid="guide-send-stage" style={{ fontSize: 14, color: 'var(--gray)' }}>
           {props.stageName}
@@ -152,6 +147,7 @@ export function SendCard(props: SendCardProps) {
         rows={2}
         style={{ fontSize: 14 }}
         value={props.value}
+        readOnly={props.referenceOnly}
         aria-invalid={props.issue !== null}
         onChange={(event) => props.onChange(event.target.value)}
         onKeyDown={(event) => {
@@ -172,7 +168,9 @@ export function SendCard(props: SendCardProps) {
         data-testid="guide-send-reminder"
         style={{ margin: 0, fontSize: 15, color: 'var(--gray)' }}
       >
-        A sua IA precisa estar aberta no terminal para receber este comando.
+        {props.referenceOnly
+          ? 'O guia não envia este comando. Digite o equivalente na sua IA, no terminal.'
+          : 'A sua IA precisa estar aberta no terminal para receber este comando.'}
       </p>
       {props.value !== props.original ? (
         <div>

@@ -5,6 +5,8 @@ import type { GuideDecision, Moment } from '@/core/types';
 import { momentContent, NO_ACTIVE_INTENT_CONTENT, terminalHint } from '@/guide/moment-content';
 import type { ArtifactQuery } from '@/web/client/use-artifacts';
 import { useArtifacts } from '@/web/client/use-artifacts';
+import { applyColors } from '@/web/client/apply-colors';
+import { useCustomization } from '@/web/client/use-customization';
 import { useGuide, type GuideState } from '@/web/client/use-guide';
 import type { GuideView } from '@/web/guide-service';
 import { GuideBand } from './guide-band';
@@ -13,6 +15,8 @@ import { Say, StepBar } from './guide-parts';
 import { Logo } from './logo';
 import { TerminalPanel, type TerminalPanelHandle } from './terminal-panel';
 import { Trail } from './trail';
+import { Customize } from './customize';
+import { Activation, DemandTabs, Home, NewDemand, type HubScreen } from './demand-hub';
 
 const MAX_COMMAND_LENGTH = 8000;
 
@@ -129,6 +133,8 @@ function StageHeader({ view, consulting }: { view: GuideView; consulting: boolea
 /** Tela do guia: segue a estrutura de `design/prototipo/Main.dc.html`. */
 export function GuideApp() {
   const { state, actions, loadError, changedNotice } = useGuide();
+  const { custom, setCustom } = useCustomization();
+  const appRef = useRef<HTMLDivElement>(null);
   const [collapsed, setCollapsed] = useState(false);
   const [draftEdit, setDraftEdit] = useState<{ stage: string; text: string } | null>(null);
   const [failure, setFailure] = useState<string | null>(null);
@@ -136,11 +142,13 @@ export function GuideApp() {
   const [resuming, setResuming] = useState(false);
   const [consultStage, setConsultStage] = useState<string | null>(null);
   const [shownMoment, setShownMoment] = useState<Moment | undefined>(undefined);
+  const [screen, setScreen] = useState<HubScreen>('guide');
   const sendingRef = useRef(false);
   const terminalRef = useRef<TerminalPanelHandle>(null);
   const pendingFocus = useRef(false);
 
   const view = state.kind === 'guide' ? state.view : null;
+  const currentScreen = state.kind === 'no_intent' && screen === 'guide' ? 'home' : screen;
   const stageSlug = view?.stage.stateSlug ?? '';
   const draft = draftEdit?.stage === stageSlug ? draftEdit.text : (view?.command ?? '');
   const moment = view?.decision.moment;
@@ -153,6 +161,10 @@ export function GuideApp() {
   const isResuming = resuming && view?.decision.showIdleNotice === true;
 
   const { refresh } = actions;
+  // As cores personalizadas viram variáveis CSS no elemento raiz, sem recarregar a página.
+  useEffect(() => {
+    if (appRef.current) applyColors(appRef.current, custom);
+  }, [custom]);
   const artifacts = useArtifacts(artifactQuery(view, consultStage), () => void refresh());
 
   useEffect(() => {
@@ -238,18 +250,39 @@ export function GuideApp() {
   const issue = commandIssue(draft);
 
   return (
-    <div className={collapsed ? 'app app-closed' : 'app'} data-testid="guide-app">
+    <div ref={appRef} className={collapsed ? 'app app-closed' : 'app'} data-testid="guide-app">
       <div className="left">
         <header className="top">
-          <div className="brand" data-testid="guide-brand">
+          <div
+            className="brand"
+            data-testid="guide-brand"
+            role="button"
+            tabIndex={0}
+            onClick={() => setScreen('home')}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter') setScreen('home');
+            }}
+          >
             <Logo />
             <span>vibes dlc</span>
           </div>
+          <button
+            type="button"
+            className="btn2"
+            data-testid="customize-open"
+            onClick={() => setScreen('customize')}
+          >
+            Personalizar
+          </button>
         </header>
         <div className={view ? 'panes with-rail' : 'panes'}>
-          {view ? <Trail phases={view.trail} onSelect={handleTrailSelect} /> : null}
+          {view && currentScreen === 'guide' ? (
+            <Trail phases={view.trail} onSelect={handleTrailSelect} />
+          ) : null}
           <main className="main">
-            {view ? <StageHeader view={view} consulting={consulting} /> : null}
+            {view && currentScreen === 'guide' ? (
+              <StageHeader view={view} consulting={consulting} />
+            ) : null}
             <div className="scroll">
               <div
                 style={{
@@ -266,10 +299,47 @@ export function GuideApp() {
                     {loadError}
                   </p>
                 ) : null}
-                {view && consultStage ? (
+                {currentScreen === 'customize' ? (
+                  <Customize
+                    onChange={setCustom}
+                    onClose={() => {
+                      setScreen('guide');
+                      void actions.refresh();
+                    }}
+                  />
+                ) : null}
+                {currentScreen === 'home' ? (
+                  <Home
+                    custom={custom}
+                    onOpen={(id) => {
+                      void actions.openDemand(id);
+                      setScreen('guide');
+                    }}
+                    onNew={() => setScreen('new')}
+                  />
+                ) : null}
+                {currentScreen === 'new' ? (
+                  <NewDemand
+                    custom={custom}
+                    onCancel={() => setScreen('home')}
+                    onCreated={() => setScreen('home')}
+                  />
+                ) : null}
+                {currentScreen === 'tabs' && view ? (
+                  <DemandTabs view={view} onBack={() => setScreen('guide')} />
+                ) : null}
+                {currentScreen === 'guide' && view?.decision.moment === 'not_active' ? (
+                  <Activation intentId={view.intentId} onActivated={() => void actions.refresh()} />
+                ) : null}
+                {currentScreen === 'guide' && view ? (
+                  <button data-testid="open-demand-tabs" onClick={() => setScreen('tabs')}>
+                    Artefatos · Unidades e ciclos · Decisões · Histórico
+                  </button>
+                ) : null}
+                {currentScreen === 'guide' && view && consultStage ? (
                   <ConsultBody stageSlug={consultStage} artifacts={artifacts} />
                 ) : null}
-                {view && !consultStage ? (
+                {currentScreen === 'guide' && view && !consultStage ? (
                   <GuideBody
                     view={view}
                     draft={draft}
@@ -284,12 +354,12 @@ export function GuideApp() {
                     onDismissChanged={actions.dismissChanged}
                   />
                 ) : null}
-                {view ? null : (
+                {view || currentScreen !== 'guide' ? null : (
                   <NoGuideBody state={state as Exclude<GuideState, { kind: 'guide' }>} />
                 )}
               </div>
             </div>
-            {view ? (
+            {view && currentScreen === 'guide' ? (
               <GuideBand
                 view={view}
                 resuming={isResuming}

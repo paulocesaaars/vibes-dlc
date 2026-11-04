@@ -2,6 +2,7 @@ import type { Database } from './database';
 
 export type SendMode = 'execute' | 'paste';
 export type SentCommandStatus = 'pending' | 'written' | 'failed';
+export type SentCommandKind = 'stage' | 'new_demand' | 'analysis' | 'activate';
 
 export type SentCommand = {
   commandId: string;
@@ -12,12 +13,13 @@ export type SentCommand = {
   status: SentCommandStatus;
   sentAt: string;
   writtenAt: number | null;
+  kind: SentCommandKind;
 };
 
 export type NewSentCommand = Pick<
   SentCommand,
   'commandId' | 'intentId' | 'stageSlug' | 'text' | 'mode'
->;
+> & { kind?: SentCommandKind };
 
 type SentCommandRow = {
   command_id: string;
@@ -28,6 +30,7 @@ type SentCommandRow = {
   status: SentCommandStatus;
   sent_at: string;
   written_at: number | null;
+  kind: SentCommandKind;
 };
 
 function toSentCommand(row: SentCommandRow): SentCommand {
@@ -40,6 +43,7 @@ function toSentCommand(row: SentCommandRow): SentCommand {
     status: row.status,
     sentAt: row.sent_at,
     writtenAt: row.written_at,
+    kind: row.kind,
   };
 }
 
@@ -58,10 +62,18 @@ export class SentCommandRepo {
   insertPending(command: NewSentCommand, sentAt: string = new Date().toISOString()): boolean {
     const { changes } = this.db.run(
       `INSERT INTO sent_command
-         (command_id, intent_id, stage_slug, text, mode, status, sent_at)
-       VALUES (?, ?, ?, ?, ?, 'pending', ?)
+         (command_id, intent_id, stage_slug, text, mode, status, sent_at, kind)
+       VALUES (?, ?, ?, ?, ?, 'pending', ?, ?)
        ON CONFLICT (command_id) DO NOTHING`,
-      [command.commandId, command.intentId, command.stageSlug, command.text, command.mode, sentAt],
+      [
+        command.commandId,
+        command.intentId,
+        command.stageSlug,
+        command.text,
+        command.mode,
+        sentAt,
+        command.kind ?? 'stage',
+      ],
     );
     return changes === 1;
   }
@@ -85,7 +97,7 @@ export class SentCommandRepo {
   lastWritten(intentId: string, stageSlug: string): SentCommand | null {
     const rows = this.db.all<SentCommandRow>(
       `SELECT * FROM sent_command
-       WHERE intent_id = ? AND stage_slug = ? AND status = 'written'
+       WHERE intent_id = ? AND stage_slug = ? AND status = 'written' AND kind = 'stage'
        ORDER BY written_at DESC, rowid DESC LIMIT 1`,
       [intentId, stageSlug],
     );
@@ -97,7 +109,7 @@ export class SentCommandRepo {
     return this.db
       .all<SentCommandRow>(
         `SELECT * FROM sent_command
-         WHERE intent_id = ? AND status = 'written'
+         WHERE intent_id = ? AND status = 'written' AND kind IN ('stage', 'activate')
          ORDER BY written_at DESC, rowid DESC`,
         [intentId],
       )

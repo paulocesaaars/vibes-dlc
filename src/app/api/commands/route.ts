@@ -1,9 +1,9 @@
-import { logger } from '@/config/logger';
 import { sendBlockedMessage } from '@/guide/moment-content';
 import { decideFor } from '@/web/guide-service';
 import { rejectForeignRequest } from '@/web/request-guard';
 import { errorResponse, jsonResponse, invalidInput } from '@/web/responses';
 import { getRuntime, type Runtime } from '@/web/runtime';
+import { sendCommand } from '@/web/send-command';
 import { commandSchema, readJsonBody } from '@/web/schemas';
 
 export const dynamic = 'force-dynamic';
@@ -25,6 +25,16 @@ async function checkSendAllowed(runtime: Runtime, body: CommandBody): Promise<Re
 
   if (read.kind === 'ok') {
     const { summary, currentStage } = read.detail;
+    if (summary.intentId !== body.intentId) {
+      const target = runtime.reader.readDemand(body.intentId);
+      if (target.kind === 'ok' && !target.detail.summary.isActive) {
+        return errorResponse(
+          409,
+          'not_active',
+          'Esta demanda está em modo de consulta. Torne-a ativa antes de enviar.',
+        );
+      }
+    }
     // Uma leitura antiga não serve para liberar um envio: a tela tenta de novo em seguida.
     if (
       read.stale ||
@@ -39,38 +49,6 @@ async function checkSendAllowed(runtime: Runtime, body: CommandBody): Promise<Re
   if (decision.canSend) return null;
   const reason = decision.sendBlockedReason ?? 'not_send_moment';
   return errorResponse(409, reason, sendBlockedMessage(reason));
-}
-
-/** Grava `pending`, escreve no terminal e grava `written` (BR5.2). Enter só em `execute` (BR5.4). */
-function writeCommand(runtime: Runtime, body: CommandBody): Response {
-  const { commandId, intentId, stageSlug, text, mode } = body;
-  runtime.commands.insertPending({ commandId, intentId, stageSlug, text, mode });
-
-  try {
-    runtime.terminal.write(mode === 'execute' ? `${text}\r` : text);
-  } catch (error) {
-    runtime.commands.markFailed(commandId);
-    const reason = error instanceof Error ? error.message : String(error);
-    logger.error('envio', `A escrita do comando ${commandId} no terminal falhou: ${reason}.`);
-    return errorResponse(500, 'write_failed', 'O comando não chegou ao terminal. Tente de novo.');
-  }
-
-  try {
-    const writtenAt = Date.now();
-    runtime.commands.markWritten(commandId, writtenAt);
-    runtime.progress.markFollowing(intentId, stageSlug);
-    return jsonResponse({ commandId, status: 'written', mode, writtenAt });
-  } catch (error) {
-    // O comando chegou, mas o registro falhou: a linha fica em `pending` e vira `failed` no início
-    // seguinte, então a interface avisa em vez de oferecer o reenvio como seguro.
-    const reason = error instanceof Error ? error.message : String(error);
-    logger.error('envio', `O registro do comando ${commandId} falhou: ${reason}.`);
-    return errorResponse(
-      500,
-      'unknown_delivery',
-      'O comando pode ter chegado ao terminal, mas o guia não conseguiu registrá-lo. Confira o terminal antes de enviar de novo.',
-    );
-  }
 }
 
 /** Envia um comando confirmado pela pessoa, com as camadas de `security-design.md`, nesta ordem. */
@@ -95,5 +73,5 @@ export async function POST(request: Request): Promise<Response> {
 
   const blocked = await checkSendAllowed(runtime, body.data);
   if (blocked) return blocked;
-  return writeCommand(runtime, body.data);
+  return sendCommand(runtime, { ...body.data, kind: 'stage' }, true);
 }

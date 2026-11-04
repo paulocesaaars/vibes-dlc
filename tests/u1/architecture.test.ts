@@ -88,7 +88,11 @@ describe('rede e dados', () => {
       text.includes('newCommandId('),
     );
     const files = callers.map(({ file }) => file.split(path.sep).join('/')).sort();
-    expect(files).toEqual(['src/web/client/terminal-io.ts', 'src/web/client/use-guide.ts']);
+    expect(files).toEqual([
+      'src/web/client/terminal-io.ts',
+      'src/web/client/use-guide.ts',
+      'src/web/components/demand-hub.tsx',
+    ]);
   });
 
   it('as fontes vêm do pacote, sem recurso externo', () => {

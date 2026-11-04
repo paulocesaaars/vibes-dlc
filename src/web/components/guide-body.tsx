@@ -126,6 +126,7 @@ export function GuideBody(props: GuideBodyProps) {
           original={view.command}
           issue={commandIssue}
           failure={failure}
+          referenceOnly={decision.sendBlockedReason === 'other_cli'}
           onChange={props.onDraft}
           onReset={props.onResetDraft}
         />

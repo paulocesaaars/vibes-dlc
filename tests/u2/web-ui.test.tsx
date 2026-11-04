@@ -369,6 +369,37 @@ function idleView(extra: Partial<GuideDecision> = {}): GuideView {
   });
 }
 
+describe('Outra CLI no passo Enviar (BR6.2)', () => {
+  const otherCli = { canSend: false, sendBlockedReason: 'other_cli' } as const;
+
+  it('mostra o comando como referência, sem botão de envio e sem colar', async () => {
+    const server = installServer(viewOf('send', { decision: otherCli }));
+    await renderGuide();
+    const command = screen.getByTestId('guide-command-input') as HTMLTextAreaElement;
+    expect(command.value).toBe('/aidlc');
+    expect(command.readOnly).toBe(true);
+    expect(screen.queryByTestId('guide-send-button')).toBeNull();
+    expect(screen.queryByTestId('guide-paste-button')).toBeNull();
+    expect(screen.getByTestId('guide-send-reminder').textContent).toContain('Digite o equivalente');
+    expect(server.bodiesOf('/api/commands')).toEqual([]);
+  });
+
+  it('não promete o envio no texto do passo', async () => {
+    installServer(viewOf('send', { decision: otherCli }));
+    await renderGuide();
+    expect(screen.queryByText(/quando você confirmar/)).toBeNull();
+    expect(screen.getByText(/Este comando é uma referência/)).toBeTruthy();
+  });
+
+  it('com Claude Code, o mesmo passo mantém o envio e a edição', async () => {
+    installServer(viewOf('send'));
+    await renderGuide();
+    expect(screen.getByTestId('guide-send-button')).toBeTruthy();
+    expect(screen.getByTestId('guide-paste-button')).toBeTruthy();
+    expect((screen.getByTestId('guide-command-input') as HTMLTextAreaElement).readOnly).toBe(false);
+  });
+});
+
 describe('IA parada', () => {
   it('mostra os minutos e o texto de que pode ter parado, sem afirmar', async () => {
     installServer(idleView());

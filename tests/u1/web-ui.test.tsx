@@ -179,13 +179,11 @@ describe('momentos', () => {
     expect(server.bodiesOf('/api/terminal/session')).toContainEqual({ newSession: true });
   });
 
-  it('sem intent ativo, mostra a instrução para criar uma demanda no terminal', async () => {
+  it('sem intent ativo, abre o Início e oferece Nova demanda', async () => {
     installFakeServer(null);
     await renderGuide();
-    expect(screen.getByTestId('guide-instruction').textContent).toBe(
-      'Crie uma demanda no terminal',
-    );
-    expect(screen.getByTestId('guide-text').textContent).toContain('a sua IA');
+    expect(screen.getByTestId('demand-home').textContent).toContain('Nenhuma demanda');
+    expect(screen.getByTestId('new-demand')).toBeTruthy();
     expect(screen.queryByTestId('guide-trail')).toBeNull();
   });
 
@@ -197,9 +195,7 @@ describe('momentos', () => {
     server.repo = { health: 'ok', failedPath: null };
     await userEvent.click(screen.getByTestId('guide-retry-button'));
     await waitFor(() =>
-      expect(screen.getByTestId('guide-instruction').textContent).toBe(
-        'Crie uma demanda no terminal',
-      ),
+      expect(screen.getByTestId('demand-home').textContent).toContain('Nenhuma demanda'),
     );
   });
 

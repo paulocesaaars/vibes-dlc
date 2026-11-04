@@ -29,6 +29,7 @@ export type GuideState =
 
 export type GuideActions = {
   refresh: () => Promise<void>;
+  openDemand: (intentId: string) => Promise<void>;
   understood: () => Promise<void>;
   send: (text: string, mode: 'execute' | 'paste') => Promise<SendResult>;
   openNewSession: () => Promise<void>;
@@ -59,11 +60,13 @@ export function useGuide(): {
   const viewRef = useRef<GuideView | null>(null);
   const checkedSeenRef = useRef<string | null>(null);
   const noticeOpenRef = useRef(false);
+  const selectedIntentRef = useRef<string | null>(null);
 
   const refresh = useCallback(async () => {
     try {
       const demands = await fetchDemands();
-      if (!demands.activeIntentId) {
+      const targetIntentId = selectedIntentRef.current ?? demands.activeIntentId;
+      if (!targetIntentId) {
         viewRef.current = null;
         setState(
           demands.repo.health === 'ok'
@@ -73,7 +76,7 @@ export function useGuide(): {
         setLoadError(null);
         return;
       }
-      const view = await fetchGuide(demands.activeIntentId);
+      const view = await fetchGuide(targetIntentId);
       viewRef.current = view;
       if (view.session.sessionId) storeSessionId(view.session.sessionId);
       setState({ kind: 'guide', view });
@@ -82,6 +85,14 @@ export function useGuide(): {
       setLoadError(error instanceof Error ? error.message : String(error));
     }
   }, []);
+
+  const openDemand = useCallback(
+    async (intentId: string) => {
+      selectedIntentRef.current = intentId;
+      await refresh();
+    },
+    [refresh],
+  );
 
   // Com a leitura falhando, a tela mostra a anterior e tenta de novo (BR4.7).
   const isStale = state.kind === 'guide' && state.view.stale;
@@ -211,6 +222,7 @@ export function useGuide(): {
     changedNotice,
     actions: {
       refresh,
+      openDemand,
       understood,
       send,
       openNewSession,

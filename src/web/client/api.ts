@@ -1,13 +1,75 @@
 import type { ArtifactContent } from '@/aidlc/artifacts';
 import type { RepoHealth } from '@/core/types';
+import type { CliKind } from '@/core/types';
 import type { ArtifactList } from '@/web/artifact-service';
 import type { GuideView } from '@/web/guide-service';
 import type { SeenResponse } from '@/web/schemas';
+import type { DemandRow, DecisionRow, UnitRow } from '@/aidlc/demand-browser';
+import type { ArtifactNote } from '@/db/artifact-note-repo';
+import type { SentCommand } from '@/db/sent-command-repo';
 
 export type DemandsResponse = {
   repo: { health: RepoHealth; failedPath: string | null };
   activeIntentId: string | null;
+  rows: DemandRow[];
+  cliKind: CliKind;
 };
+
+export async function fetchDemandRows(): Promise<DemandRow[]> {
+  return (await fetchDemands()).rows ?? [];
+}
+export async function fetchUnits(intentId: string): Promise<UnitRow[]> {
+  return (await (await fetch(`/api/demands/${encodeURIComponent(intentId)}/units`)).json())
+    .units as UnitRow[];
+}
+export async function fetchDecisions(intentId: string): Promise<DecisionRow[]> {
+  return (await (await fetch(`/api/demands/${encodeURIComponent(intentId)}/decisions`)).json())
+    .decisions as DecisionRow[];
+}
+export async function fetchCommandHistory(intentId: string): Promise<SentCommand[]> {
+  return (await (await fetch(`/api/demands/${encodeURIComponent(intentId)}/commands`)).json())
+    .commands as SentCommand[];
+}
+export async function fetchNotes(intentId: string, path: string): Promise<ArtifactNote[]> {
+  return (
+    await (
+      await fetch(
+        `/api/demands/${encodeURIComponent(intentId)}/notes?path=${encodeURIComponent(path)}`,
+      )
+    ).json()
+  ).notes as ArtifactNote[];
+}
+export async function postNote(
+  intentId: string,
+  path: string,
+  text: string,
+): Promise<ApiFailure | null> {
+  const response = await postJson(`/api/demands/${encodeURIComponent(intentId)}/notes`, {
+    path,
+    text,
+  });
+  return response.ok ? null : readFailure(response);
+}
+export async function postNewDemandCommand(body: {
+  commandId: string;
+  text: string;
+  mode: 'execute' | 'paste';
+  kind: 'new_demand' | 'analysis';
+}): Promise<SendResult> {
+  const response = await postJson('/api/demands/new/command', body);
+  return response.ok
+    ? { ok: true }
+    : { ok: false, status: response.status, ...(await readFailure(response)) };
+}
+export async function postActivate(
+  intentId: string,
+  body: { commandId: string; mode: 'execute' | 'paste' },
+): Promise<SendResult> {
+  const response = await postJson(`/api/demands/${encodeURIComponent(intentId)}/activate`, body);
+  return response.ok
+    ? { ok: true }
+    : { ok: false, status: response.status, ...(await readFailure(response)) };
+}
 
 export type ApiFailure = { code: string; message: string };
 

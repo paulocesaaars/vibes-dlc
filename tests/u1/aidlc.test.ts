@@ -186,7 +186,7 @@ describe('AidlcReader', () => {
     expect(listener).not.toHaveBeenCalled();
   });
 
-  it('não reage a arquivos de outro intent', async () => {
+  it('não reage a arquivos arbitrários de outro intent', async () => {
     const repo = createAidlcRepo();
     const other = path.join(repo.intentsDir, 'outra-demanda');
     mkdirSync(other);

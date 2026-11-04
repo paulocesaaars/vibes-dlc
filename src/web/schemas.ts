@@ -6,24 +6,37 @@ export const MAX_INPUT_BYTES = 64 * 1024;
 const MAX_BODY_BYTES = 1024 * 1024;
 
 const uuid = z.uuid();
+export const commandTextSchema = z
+  .string()
+  .min(1)
+  .max(MAX_COMMAND_LENGTH)
+  .refine((text) => !/[\r\n]/.test(text), 'O comando tem uma linha só.')
+  .refine((text) => {
+    return !/[\u0000-\u001f\u007f]/.test(text);
+  }, 'O comando não pode ter caracteres de controle.')
+  .refine((text) => text.trim().length > 0, 'O comando não pode ficar vazio.');
 
 export const commandSchema = z.object({
   commandId: uuid,
   intentId: z.string().min(1).max(200),
   stageSlug: z.string().max(200),
-  text: z
-    .string()
-    .min(1)
-    .max(MAX_COMMAND_LENGTH)
-    .refine((text) => !/[\r\n]/.test(text), 'O comando tem uma linha só.')
-    .refine(
-      // Um caractere de controle não aparece no campo e pode agir na CLI, como executar sem Enter.
-      // eslint-disable-next-line no-control-regex
-      (text) => !/[\u0000-\u001f\u007f]/.test(text),
-      'O comando não pode ter caracteres de controle.',
-    )
-    .refine((text) => text.trim().length > 0, 'O comando não pode ficar vazio.'),
+  text: commandTextSchema,
   mode: z.enum(['execute', 'paste']),
+});
+
+export const newDemandCommandSchema = z.object({
+  commandId: uuid,
+  text: commandTextSchema,
+  mode: z.enum(['execute', 'paste']),
+  kind: z.enum(['new_demand', 'analysis']),
+});
+export const activateCommandSchema = z.object({
+  commandId: uuid,
+  mode: z.enum(['execute', 'paste']),
+});
+export const noteSchema = z.object({
+  path: z.string().min(1).max(1024),
+  text: z.string().trim().min(1).max(4000),
 });
 
 export const sessionSchema = z.object({
@@ -131,3 +144,18 @@ export async function readJsonBody<T>(
   }
   return { ok: true, data: result.data };
 }
+
+/** Personalização (BR7.2): esquema fechado, e só a chave `visitId` é obrigatória. */
+const sayFieldsSchema = z.strictObject({
+  title: z.string().max(1000).nullable().optional(),
+  text: z.string().max(5000).nullable().optional(),
+});
+export const customizationPutSchema = z.strictObject({
+  visitId: z.string().min(1).max(100),
+  colors: z.record(z.string().max(40), z.string().max(40).nullable()).optional(),
+  says: z.record(z.string().max(80), sayFieldsSchema).optional(),
+  media: z.record(z.string().max(80), z.null()).optional(),
+  cliKind: z.enum(['claude_code', 'other']).nullable().optional(),
+  resetAll: z.literal(true).optional(),
+});
+export const visitActionSchema = z.strictObject({ visitId: z.string().min(1).max(100) });

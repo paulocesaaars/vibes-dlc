@@ -1,4 +1,4 @@
-import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
+import { existsSync, lstatSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { logger } from '@/config/logger';
 import type { RepoHealth, StageMark } from '@/core/types';
@@ -12,6 +12,13 @@ import {
   toArtifactItem,
 } from './artifacts';
 import { ChangeWatcher } from './change-watcher';
+import {
+  listDemandRows,
+  readDecisions,
+  readUnits,
+  type DecisionRow,
+  type UnitRow,
+} from './demand-browser';
 import { computeSignature } from './file-signature';
 import { isSafeSlug, type QuestionOptions } from './open-questions';
 import { parseState, type ParsedState } from './parse-state';
@@ -92,6 +99,12 @@ function toStageStates(
 export class AidlcReader {
   private readonly listeners = new Set<(intentId: string | null) => void>();
   private readonly lastValid = new Map<string, LastValid>();
+  private tabCache: {
+    intentId: string;
+    signature: string;
+    units?: UnitRow[];
+    decisions?: DecisionRow[];
+  } | null = null;
   private watcher: ChangeWatcher | null = null;
   private readonly work: WorkSignalsReader;
 
@@ -190,6 +203,66 @@ export class AidlcReader {
       .map((entry) => this.summarize(entry.name));
   }
 
+  async listDemandRows() {
+    return this.repoRoot ? listDemandRows(this.repoRoot) : [];
+  }
+
+  async readUnits(intentId: string) {
+    if (!this.repoRoot) return [];
+    const cache = this.tabCacheFor(intentId);
+    return (cache.units ??= await readUnits(this.repoRoot, intentId));
+  }
+
+  async readDecisions(intentId: string) {
+    if (!this.repoRoot) return [];
+    const cache = this.tabCacheFor(intentId);
+    return (cache.decisions ??= await readDecisions(this.repoRoot, intentId));
+  }
+
+  private tabCacheFor(intentId: string) {
+    const record = this.recordDir(intentId);
+    let signature = 'missing';
+    if (record) {
+      try {
+        if (!lstatSync(record).isSymbolicLink()) {
+          const audit = path.join(record, 'audit');
+          const files = [path.join(record, 'inception', 'units-generation', 'unit-of-work.md')];
+          try {
+            if (!lstatSync(audit).isSymbolicLink()) {
+              files.push(
+                ...readdirSync(audit)
+                  .filter((name) => name.endsWith('.md'))
+                  .map((name) => path.join(audit, name)),
+              );
+            }
+          } catch {
+            /* Sem audit/. */
+          }
+          signature = files
+            .map((file) => {
+              try {
+                const stat = lstatSync(file);
+                return `${file}:${stat.size}:${stat.mtimeMs}`;
+              } catch {
+                return `${file}:missing`;
+              }
+            })
+            .join('|');
+        }
+      } catch {
+        /* Registro ausente. */
+      }
+    }
+    if (
+      !this.tabCache ||
+      this.tabCache.intentId !== intentId ||
+      this.tabCache.signature !== signature
+    ) {
+      this.tabCache = { intentId, signature };
+    }
+    return this.tabCache;
+  }
+
   /** Comando oferecido na etapa atual (BR5.8). O nome da etapa fica ao lado, na interface. */
   buildStageCommand(): string {
     return '/aidlc';
@@ -280,7 +353,26 @@ export class AidlcReader {
   private observedRoots(paths: AidlcPaths): string[] {
     const intentId = readActiveIntent(paths);
     const record = intentId ? [path.join(paths.intentsDir, intentId)] : [];
-    return [paths.activeSpaceCursor, paths.activeIntentCursor, ...record];
+    return [
+      paths.activeSpaceCursor,
+      paths.activeIntentCursor,
+      path.join(paths.intentsDir, 'intents.json'),
+      ...record,
+    ];
+  }
+
+  private intentsSignature(paths: AidlcPaths): string {
+    let names: string[];
+    try {
+      names = readdirSync(paths.intentsDir, { withFileTypes: true })
+        .filter((entry) => entry.isDirectory() && isSafeName(entry.name))
+        .map((entry) => entry.name)
+        .sort();
+    } catch {
+      return 'sem-intents';
+    }
+    const states = names.map((name) => path.join(paths.intentsDir, name, 'aidlc-state.md'));
+    return `${names.join('|')}:${computeSignature(states).signature}`;
   }
 
   private ensureWatching(): void {
@@ -291,7 +383,9 @@ export class AidlcReader {
       watchDir: aidlcDir,
       readSignature: () => {
         const paths = this.paths();
-        return paths ? computeSignature(this.observedRoots(paths)).signature : 'missing';
+        return paths
+          ? `${computeSignature(this.observedRoots(paths)).signature}:${this.intentsSignature(paths)}`
+          : 'missing';
       },
       onChange: () => {
         const paths = this.paths();

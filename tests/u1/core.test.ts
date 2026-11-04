@@ -10,6 +10,7 @@ type Overrides = {
   commandSent?: SignalSnapshot['guide']['commandSent'];
   session?: SignalSnapshot['session']['status'];
   cliKind?: SignalSnapshot['preferences']['cliKind'];
+  artifactsTotal?: number;
 };
 
 function snapshot(overrides: Overrides = {}): SignalSnapshot {
@@ -31,7 +32,7 @@ function snapshot(overrides: Overrides = {}): SignalSnapshot {
     guide: {
       understood: overrides.understood ?? false,
       commandSent: overrides.commandSent ?? 'none',
-      artifactsTotal: 0,
+      artifactsTotal: overrides.artifactsTotal ?? 0,
       artifactsReviewed: 0,
     },
     session: { status: overrides.session ?? 'alive' },
@@ -112,6 +113,54 @@ describe('decideMoment', () => {
     const decision = decideMoment(snapshot({ understood: true, ...overrides }));
     expect(decision.moment).toBe('send');
     expect(decision).toMatchObject({ canSend: false, sendBlockedReason: reason });
+  });
+
+  it.each([
+    ['já no passo Enviar', { understood: true }],
+    ['antes de marcar Entendi', { understood: false }],
+  ] as const)(
+    'Outra CLI passa a Acompanhar com o primeiro artefato: %s (BR6.3)',
+    (_name, overrides) => {
+      const decision = decideMoment(
+        snapshot({ cliKind: 'other', artifactsTotal: 1, ...overrides }),
+      );
+      expect(decision).toMatchObject({
+        moment: 'following',
+        turn: 'ai',
+        primaryAction: 'none',
+        canSend: false,
+      });
+    },
+  );
+
+  it('Outra CLI sem artefato continua em Enviar (BR6.3)', () => {
+    const decision = decideMoment(snapshot({ understood: true, cliKind: 'other' }));
+    expect(decision.moment).toBe('send');
+  });
+
+  it('Claude Code com artefato continua em Enviar: o sinal é o comando enviado', () => {
+    const decision = decideMoment(
+      snapshot({ understood: true, cliKind: 'claude_code', artifactsTotal: 1 }),
+    );
+    expect(decision.moment).toBe('send');
+  });
+
+  it('Com Outra CLI, a etapa em revisão de artefatos não muda: o gate vem antes (BR6.3)', () => {
+    const decision = decideMoment(
+      snapshot({ mark: 'awaiting_approval', cliKind: 'other', artifactsTotal: 1 }),
+    );
+    expect(decision.moment).toBe('review');
+  });
+
+  it('Outra CLI vale mais que a sessão ainda não viva no passo Enviar (BR6.2)', () => {
+    const decision = decideMoment(
+      snapshot({ understood: true, cliKind: 'other', session: 'unavailable' }),
+    );
+    expect(decision).toMatchObject({
+      moment: 'send',
+      canSend: false,
+      sendBlockedReason: 'other_cli',
+    });
   });
 
   it('informa o motivo em sessão encerrada', () => {

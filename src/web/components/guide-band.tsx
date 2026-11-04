@@ -52,7 +52,9 @@ export function GuideBand(props: BandProps) {
     );
   }
 
-  const offersSend = decision.primaryAction === 'send' || resuming;
+  // Com Outra CLI, o passo Enviar fica sem botão, em vez de um botão desabilitado (BR6.2).
+  const offersSend =
+    (decision.primaryAction === 'send' || resuming) && decision.sendBlockedReason !== 'other_cli';
   const blocked = sendBlocked || !decision.canSend;
   return (
     <div className={bandClass(view)} data-testid="guide-band">

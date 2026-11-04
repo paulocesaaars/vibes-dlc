@@ -68,7 +68,7 @@ function pickBlockingMoment(snapshot: SignalSnapshot): MomentRow | null {
 function pickMoment(snapshot: SignalSnapshot): MomentRow {
   const blocking = pickBlockingMoment(snapshot);
   if (blocking) return blocking;
-  const { stage, position, signals, guide } = snapshot;
+  const { stage, position, signals, guide, preferences } = snapshot;
   if (typeof signals.openQuestions === 'number' && signals.openQuestions > 0) {
     return row('question', 'person', 'none');
   }
@@ -76,6 +76,10 @@ function pickMoment(snapshot: SignalSnapshot): MomentRow {
   if (position.source === 'audit') return row('following', 'ai', 'none');
   if (guide.commandSent === 'executed') return row('following', 'ai', 'none');
   if (guide.commandSent === 'pasted') return row('pasted', 'person', 'none');
+  // Com Outra CLI o guia não envia comando: o primeiro artefato gravado é o sinal de que a IA começou (BR6.3).
+  if (preferences.cliKind !== 'claude_code' && guide.artifactsTotal > 0) {
+    return row('following', 'ai', 'none');
+  }
   if (guide.understood) return row('send', 'person', 'send');
   return row('understand', 'person', 'understood');
 }
@@ -101,8 +105,9 @@ function sendBlock(
   if (moment === 'not_active') return 'not_active';
   if (moment === 'session_dead') return 'session_dead';
   if (moment !== 'send' && !idleNotice) return 'not_send_moment';
-  if (snapshot.session.status !== 'alive') return 'session_dead';
+  // Com Outra CLI não há envio, com ou sem sessão: o motivo não pode depender do terminal (BR6.2).
   if (snapshot.preferences.cliKind !== 'claude_code') return 'other_cli';
+  if (snapshot.session.status !== 'alive') return 'session_dead';
   return null;
 }
 

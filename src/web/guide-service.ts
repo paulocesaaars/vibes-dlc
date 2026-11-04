@@ -1,6 +1,8 @@
 import type { DemandDetail, DemandRead, StageState } from '@/aidlc/reader';
 import type { WorkSignals } from '@/aidlc/work-signals';
 import { decideMoment, deriveCommandSent } from '@/core/decide-moment';
+import { logger } from '@/config/logger';
+import type { CustomizationState } from '@/customization/customization-service';
 import { demandProgress, trailStatuses } from '@/core/trail';
 import type {
   GuideDecision,
@@ -20,6 +22,7 @@ import {
 import { phaseName, type StageContent, stageContent, stageName } from '@/guide/stage-content';
 import { terminalTitle, type EndReason } from '@/terminal/terminal-manager';
 import { countStageArtifacts } from './artifact-service';
+import { composeContent, momentKeyOf } from './compose-moment';
 import type { Runtime } from './runtime';
 
 export type TrailStage = {
@@ -264,7 +267,7 @@ function buildSnapshot(runtime: Runtime, inputs: SnapshotInputs): SignalSnapshot
       artifactsReviewed: artifacts.reviewed,
     },
     session: { status: session.status },
-    preferences: { cliKind: 'claude_code' },
+    preferences: { cliKind: runtime.customization.readCliKind() },
   };
 }
 
@@ -273,7 +276,9 @@ export async function decideFor(runtime: Runtime, intentId: string, read: Demand
   const session = sessionSignals(runtime);
   const repo = resolveHealth(read, runtime, session);
   const detail = read.kind === 'ok' ? read.detail : null;
-  const signals = detail ? await runtime.reader.readWorkSignals(detail) : NO_SIGNALS;
+  const signals = detail?.summary.isActive
+    ? await runtime.reader.readWorkSignals(detail)
+    : NO_SIGNALS;
   const stage = detail?.currentStage ?? EMPTY_STAGE;
   const artifacts = await countArtifacts(runtime, intentId, stage, signals);
   const snapshot = buildSnapshot(runtime, {
@@ -319,6 +324,16 @@ async function readConclusion(
   return conclusionNote(stageName(slug), counts.reviewed, counts.total);
 }
 
+/** A personalização nunca derruba o guia: se a leitura falhar, vale o texto original. */
+function readCustomization(runtime: Runtime): CustomizationState | null {
+  try {
+    return runtime.customization.read();
+  } catch (error) {
+    logger.error('personalização', `read_failed caminho=.vibes/vibes.db motivo=${String(error)}`);
+    return null;
+  }
+}
+
 export async function buildGuideView(runtime: Runtime, intentId: string): Promise<GuideView> {
   const read = runtime.reader.readDemand(intentId);
   const decided = await decideFor(runtime, intentId, read);
@@ -347,16 +362,21 @@ export async function buildGuideView(runtime: Runtime, intentId: string): Promis
     },
     position: snapshot.position,
     decision,
-    content: momentContent(decision, {
-      stageName: name,
-      stageNumber: shown.number,
-      stageDescription: about.whatItDoes,
-      health: repo.health,
-      failedPath: repo.failedPath,
-      artifactsTotal: artifacts.total,
-      artifactsReviewed: artifacts.reviewed,
-      nextStageName: nextName,
-    }),
+    content: composeContent(
+      momentContent(decision, {
+        stageName: name,
+        stageNumber: shown.number,
+        stageDescription: about.whatItDoes,
+        health: repo.health,
+        failedPath: repo.failedPath,
+        artifactsTotal: artifacts.total,
+        artifactsReviewed: artifacts.reviewed,
+        nextStageName: nextName,
+      }),
+      momentKeyOf(decision),
+      readCustomization(runtime),
+      { etapa: name, descricao: about.whatItDoes },
+    ),
     stageContent: about,
     command: runtime.reader.buildStageCommand(),
     trail: detail ? buildTrail(detail, shown.stageSlug || null, snapshot) : [],

@@ -11,6 +11,8 @@ export type AppConfig = {
   publicHost: string | null;
   dbPath: string;
   vibesDir: string;
+  /** Pasta das mídias personalizadas: `vibesDir/media` (BR7.1). */
+  mediaDir: string;
   shell: ShellLookup;
   repoRoot: string | null;
   exposed: boolean;
@@ -87,11 +89,13 @@ function readDbPath(env: Env, baseDir: string): { dbPath: string; vibesDir: stri
 export function loadConfig(env: Env = process.env, cwd: string = process.cwd()): AppConfig {
   const host = readHost('VIBES_HOST', env.VIBES_HOST, '127.0.0.1');
   const repoRoot = findRepoRoot(cwd);
+  const paths = readDbPath(env, repoRoot ?? cwd);
   return {
     port: readPort(env),
     host,
     publicHost: readHost('VIBES_PUBLIC_HOST', env.VIBES_PUBLIC_HOST, null),
-    ...readDbPath(env, repoRoot ?? cwd),
+    ...paths,
+    mediaDir: path.join(paths.vibesDir, 'media'),
     shell: findShell(env),
     repoRoot,
     exposed: host !== '127.0.0.1',

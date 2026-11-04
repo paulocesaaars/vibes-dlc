@@ -4,6 +4,21 @@ import path from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { POST as postCommand } from '@/app/api/commands/route';
 import { GET as getDemands } from '@/app/api/demands/route';
+import { GET as getCustomization, PUT as putCustomization } from '@/app/api/customization/route';
+import { POST as postCustomMedia } from '@/app/api/customization/media/route';
+import { GET as getCustomMedia } from '@/app/api/customization/media/[mediaId]/route';
+import { POST as postCustomVisit } from '@/app/api/customization/visit/route';
+import { POST as postCustomCancel } from '@/app/api/customization/visit/cancel/route';
+import { POST as postCustomDone } from '@/app/api/customization/visit/done/route';
+import { POST as postNewDemand } from '@/app/api/demands/new/command/route';
+import { POST as postActivateDemand } from '@/app/api/demands/[intentId]/activate/route';
+import { GET as getDemandUnits } from '@/app/api/demands/[intentId]/units/route';
+import { GET as getDemandDecisions } from '@/app/api/demands/[intentId]/decisions/route';
+import { GET as getDemandCommands } from '@/app/api/demands/[intentId]/commands/route';
+import {
+  GET as getDemandNotes,
+  POST as postDemandNote,
+} from '@/app/api/demands/[intentId]/notes/route';
 import { GET as getGuide } from '@/app/api/demands/[intentId]/guide/route';
 import { GET as getArtifacts } from '@/app/api/demands/[intentId]/artifacts/route';
 import { POST as postReview } from '@/app/api/demands/[intentId]/artifacts/review/route';
@@ -121,6 +136,13 @@ describe('todas as rotas rejeitam Origin e Host de fora, sem efeito', () => {
     ['resize', 'POST', postResize],
     ['commands', 'POST', postCommand],
     ['demands', 'GET', getDemands],
+    ['demands/new/command', 'POST', postNewDemand],
+    ['activate', 'POST', (request) => postActivateDemand(request, paramsOf(INTENT_ID))],
+    ['units', 'GET', (request) => getDemandUnits(request, paramsOf(INTENT_ID))],
+    ['decisions', 'GET', (request) => getDemandDecisions(request, paramsOf(INTENT_ID))],
+    ['commands/history', 'GET', (request) => getDemandCommands(request, paramsOf(INTENT_ID))],
+    ['notes', 'GET', (request) => getDemandNotes(request, paramsOf(INTENT_ID))],
+    ['notes', 'POST', (request) => postDemandNote(request, paramsOf(INTENT_ID))],
     ['guide', 'GET', (request) => getGuide(request, paramsOf(INTENT_ID))],
     ['understood', 'POST', (request) => postUnderstood(request, paramsOf(INTENT_ID))],
     ['events', 'GET', getEvents],
@@ -130,6 +152,20 @@ describe('todas as rotas rejeitam Origin e Host de fora, sem efeito', () => {
     ['seen', 'POST', (request) => postSeen(request, paramsOf(INTENT_ID))],
     ['trail', 'GET', (request) => getTrail(request, paramsOf(INTENT_ID))],
     ['conclusion', 'POST', (request) => postConclusion(request, paramsOf(INTENT_ID))],
+    ['customization', 'GET', getCustomization],
+    ['customization', 'PUT', putCustomization],
+    ['customization/visit', 'POST', postCustomVisit],
+    ['customization/visit/done', 'POST', postCustomDone],
+    ['customization/visit/cancel', 'POST', postCustomCancel],
+    ['customization/media', 'POST', postCustomMedia],
+    [
+      'customization/media/[mediaId]',
+      'GET',
+      (request) =>
+        getCustomMedia(request, {
+          params: Promise.resolve({ mediaId: '11111111-2222-4333-8444-555555555555' }),
+        }),
+    ],
   ];
 
   it.each(routes)('%s %s', async (_name, method, handler) => {

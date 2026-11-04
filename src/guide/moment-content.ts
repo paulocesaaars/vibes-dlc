@@ -1,6 +1,14 @@
 import type { GuideDecision, Moment, RepoHealth, SendBlockedReason, Turn } from '@/core/types';
 
-export type GuideArt = { src: string; alt: string; animated?: boolean };
+export type GuideArt = {
+  src: string;
+  alt: string;
+  animated?: boolean;
+  /** Mídia personalizada em vídeo: toca sem som e em repetição (BR1.3). */
+  kind?: 'image' | 'video';
+  /** Arte original, usada se a mídia personalizada não carregar. */
+  fallback?: GuideArt;
+};
 
 export type MomentContent = {
   eyebrow: string;
@@ -270,7 +278,10 @@ function momentText(decision: GuideDecision, context: MomentContext): MomentText
       return {
         eyebrow: stageEyebrow,
         title: 'Confira o comando',
-        text: 'Só vai para a sua IA quando você confirmar. Se precisar, edite aqui mesmo.',
+        text:
+          decision.sendBlockedReason === 'other_cli'
+            ? 'Este comando é uma referência. Digite o equivalente na sua IA, no terminal.'
+            : 'Só vai para a sua IA quando você confirmar. Se precisar, edite aqui mesmo.',
         point: null,
         art: ARTS.comando,
         bandText: '',
