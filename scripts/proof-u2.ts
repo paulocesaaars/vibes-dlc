@@ -115,10 +115,26 @@ const instruction = (page: Page) => page.getByTestId('guide-instruction').textCo
 
 async function waitInstruction(page: Page, text: string, timeoutMs = 10_000): Promise<number> {
   const started = Date.now();
-  await page
-    .getByTestId('guide-instruction')
-    .filter({ hasText: text })
-    .waitFor({ timeout: timeoutMs });
+  try {
+    await page
+      .getByTestId('guide-instruction')
+      .filter({ hasText: text })
+      .waitFor({ timeout: timeoutMs });
+  } catch (error) {
+    // Diz o que a tela mostrava, para a falha ser entendida sem rodar de novo.
+    const shown = await page
+      .getByTestId('guide-instruction')
+      .first()
+      .textContent({ timeout: 1000 })
+      .catch(() => null);
+    const stage = await page
+      .getByTestId('guide-stage-name')
+      .first()
+      .textContent({ timeout: 1000 })
+      .catch(() => null);
+    const reason = error instanceof Error ? error.message.split('\n')[0] : String(error);
+    throw new Error(`${reason} | esperava "${text}"; etapa "${stage}"; instrução "${shown}"`);
+  }
   return Date.now() - started;
 }
 

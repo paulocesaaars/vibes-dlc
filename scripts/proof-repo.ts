@@ -52,6 +52,26 @@ function git(cwd: string, ...args: string[]): string {
 }
 
 /**
+ * Etapas que as provas encenam por conta própria. O `audit/` real cresce com a construção e, quando
+ * chega a essas etapas, traz eventos reais delas que se misturam com os da encenação. A cópia de
+ * teste fica sem eles, e o `audit/` real não é tocado.
+ */
+const STAGED_BY_PROOFS = ['code-generation', 'build-and-test', 'ci-pipeline'];
+
+function dropStagedEvents(auditDir: string): void {
+  const stages = STAGED_BY_PROOFS.join('|');
+  const staged = new RegExp(`^\\*\\*Stage\\*\\*: (${stages})\\s*$`, 'm');
+  for (const name of readdirSync(auditDir)) {
+    const file = path.join(auditDir, name);
+    if (!statSync(file).isFile() || !name.endsWith('.md')) continue;
+    const kept = readFileSync(file, 'utf8')
+      .split('\n---\n')
+      .filter((block) => !staged.test(block));
+    writeFileSync(file, kept.join('\n---\n'));
+  }
+}
+
+/**
  * Monta um repositório de teste em `.vibes/`, já ignorada pelo Git. O painel sobe com esta pasta como
  * diretório de trabalho, então só ela é lida e só nela o terminal abre.
  */
@@ -67,6 +87,7 @@ export function createProofRepo(proofId: string, options: { withAudit: boolean }
   cpSync(path.join(realRecord, 'aidlc-state.md'), path.join(recordDir, 'aidlc-state.md'));
   if (options.withAudit) {
     cpSync(path.join(realRecord, 'audit'), path.join(recordDir, 'audit'), { recursive: true });
+    dropStagedEvents(path.join(recordDir, 'audit'));
   }
   cpSync(path.join(ROOT, 'migrations'), path.join(root, 'migrations'), { recursive: true });
   cpSync(
