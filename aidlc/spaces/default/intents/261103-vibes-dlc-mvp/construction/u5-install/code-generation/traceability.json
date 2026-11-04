@@ -1,0 +1,33 @@
+{
+  "stage": "code-generation",
+  "unit": "u5-install",
+  "upstream_ids": ["AC1.1.1","AC1.1.2","AC1.1.3","AC1.1.4","AC1.1.5","AC1.2.1","AC1.2.2","AC1.2.3","AC1.2.4","NFR3.1","NFR4.1","NFR5.1","NFR5.2","NFR5.3","NFR6.1","NFR7.1","NFR7.2","NFR7.3","NFR8.1","NFR9.1","NFR9.2","NFR9.3","NFR12.1","NFR13.1","NFR10.1","NFR11.1"],
+  "coverage": [
+    { "id": "AC1.1.1", "status": "OK", "target": "scripts/proof-u5.ts" },
+    { "id": "AC1.1.2", "status": "OK", "target": "scripts/proof-u5.ts" },
+    { "id": "AC1.1.3", "status": "OK", "target": "tests/u5/config.test.ts" },
+    { "id": "AC1.1.4", "status": "OK", "target": "tests/u5/start.test.ts" },
+    { "id": "AC1.1.5", "status": "OK", "target": "tests/u5/readme.test.ts" },
+    { "id": "AC1.2.1", "status": "OK", "target": "tests/u5/web-ui.test.tsx" },
+    { "id": "AC1.2.2", "status": "OK", "target": "tests/u5/web-ui.test.tsx" },
+    { "id": "AC1.2.3", "status": "OK", "target": "tests/u5/web-ui.test.tsx" },
+    { "id": "AC1.2.4", "status": "OK", "target": "src/app/api/repo/recheck/route.ts" },
+    { "id": "NFR3.1", "status": "OK", "target": "tests/u5/start.test.ts" },
+    { "id": "NFR4.1", "status": "OK", "target": "tests/u5/routes.test.ts" },
+    { "id": "NFR5.1", "status": "OK", "target": "tests/u5/web-ui.test.tsx" },
+    { "id": "NFR5.2", "status": "OK", "target": "tests/u5/terminal.test.ts" },
+    { "id": "NFR5.3", "status": "OK", "target": "src/config/app-config.ts" },
+    { "id": "NFR6.1", "status": "OK", "target": "scripts/proof-u5.ts" },
+    { "id": "NFR7.1", "status": "OK", "target": "scripts/proof-u5.ts" },
+    { "id": "NFR7.2", "status": "OK", "target": "scripts/proof-u5.ts" },
+    { "id": "NFR7.3", "status": "OK", "target": "tests/u5/runtime.test.ts" },
+    { "id": "NFR8.1", "status": "OK", "target": "tests/u5/readme.test.ts" },
+    { "id": "NFR9.1", "status": "OK", "target": "tests/u5/start.test.ts" },
+    { "id": "NFR9.2", "status": "OK", "target": "tests/u5/web-ui.test.tsx" },
+    { "id": "NFR9.3", "status": "OK", "target": "src/web/runtime.ts" },
+    { "id": "NFR12.1", "status": "OK", "target": "scripts/proof-u5.ts" },
+    { "id": "NFR13.1", "status": "OK", "target": "tests/u5/web-ui.test.tsx" },
+    { "id": "NFR10.1", "status": "OK", "target": "tests/u5/web-ui.test.tsx" },
+    { "id": "NFR11.1", "status": "OK", "target": "scripts/proof-u5.ts" }
+  ]
+}

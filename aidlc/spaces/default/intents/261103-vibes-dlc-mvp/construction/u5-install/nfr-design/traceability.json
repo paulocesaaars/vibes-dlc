@@ -1,0 +1,24 @@
+{
+  "stage": "nfr-design",
+  "unit": "u5-install",
+  "upstream_ids": ["NFR3.1","NFR4.1","NFR5.1","NFR5.2","NFR5.3","NFR6.1","NFR7.1","NFR7.2","NFR7.3","NFR8.1","NFR9.1","NFR9.2","NFR9.3","NFR12.1","NFR13.1","NFR10.1","NFR11.1"],
+  "coverage": [
+    { "id": "NFR3.1", "status": "OK", "target": "security-design.md, seção Rede, escrita e atualização: o endereço de escuta continua o da Config" },
+    { "id": "NFR4.1", "status": "OK", "target": "security-design.md, seção Verificar de novo: POST /api/repo/recheck passa por isRequestAllowed" },
+    { "id": "NFR5.1", "status": "OK", "target": "security-design.md, seção Telas de falha: caminho e trechos do repositório como texto" },
+    { "id": "NFR5.2", "status": "OK", "target": "security-design.md, seção Caminhos com caracteres especiais: cwd do node-pty e argumentos separados" },
+    { "id": "NFR5.3", "status": "OK", "target": "security-design.md, seção Procura da raiz: a pasta do produto só vale como raiz com .git" },
+    { "id": "NFR6.1", "status": "OK", "target": "security-design.md, seção Rede, escrita e atualização: só o npm install usa rede" },
+    { "id": "NFR7.1", "status": "OK", "target": "security-design.md, seção Rede, escrita e atualização: a instalação é só a cópia da subpasta" },
+    { "id": "NFR7.2", "status": "OK", "target": "security-design.md, seção Procura da raiz e seção Prova da instalação" },
+    { "id": "NFR7.3", "status": "OK", "target": "security-design.md, seção Armazenamento sem raiz: banco em memória e sem .vibes/" },
+    { "id": "NFR8.1", "status": "OK", "target": "security-design.md, seção Telas de falha: textos em português" },
+    { "id": "NFR9.1", "status": "OK", "target": "security-design.md, seção Versão do Node.js: prepareStart com a versão como argumento" },
+    { "id": "NFR9.2", "status": "OK", "target": "security-design.md, seção Telas de falha: sem Git Bash o terminal não abre" },
+    { "id": "NFR9.3", "status": "OK", "target": "security-design.md, seção Verificar de novo: refreshRuntime reavalia raiz, leitor, banco e cwd do terminal" },
+    { "id": "NFR12.1", "status": "OK", "target": "security-design.md, seção Rede, escrita e atualização: .vibes/ fora da subpasta e cópia do banco antes de migrar" },
+    { "id": "NFR13.1", "status": "OK", "target": "security-design.md, seção Telas de falha: só caminho e motivo nas mensagens" },
+    { "id": "NFR10.1", "status": "OK", "target": "security-design.md, seção Telas de falha: teclado, rótulo e estado além da cor" },
+    { "id": "NFR11.1", "status": "OK", "target": "security-design.md, seção Prova da instalação: critério de falha e causa do node-pty" }
+  ]
+}
