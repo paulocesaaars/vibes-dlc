@@ -9,11 +9,13 @@ import {
   fetchSeen,
   killSession,
   postCommand,
+  postRecheck,
   postConclusionSeen,
   postSeen,
   postUnderstood,
   requestSession,
   type SendResult,
+  type SessionResponse,
 } from './api';
 import { newCommandId, readStoredSessionId, storeSessionId } from './terminal-io';
 
@@ -27,13 +29,38 @@ export type GuideState =
   | { kind: 'repo_failure'; health: RepoHealth; failedPath: string | null }
   | { kind: 'guide'; view: GuideView };
 
+/** A sessão do terminal fora de uma demanda: a pessoa precisa dela para instalar o AI-DLC (AC1.2.1). */
+export type LooseSession = {
+  sessionId: string | null;
+  status: 'alive' | 'dead' | 'unavailable';
+  terminalTitle: string | null;
+};
+
+const UNAVAILABLE_SESSION: LooseSession = {
+  sessionId: null,
+  status: 'unavailable',
+  terminalTitle: null,
+};
+
+function toLoose(session: SessionResponse | null): LooseSession {
+  if (!session) return UNAVAILABLE_SESSION;
+  return {
+    sessionId: session.sessionId,
+    status: session.status,
+    terminalTitle: session.terminalTitle ?? null,
+  };
+}
+
 export type GuideActions = {
   refresh: () => Promise<void>;
+  /** Tentar de novo: reavalia onde está o AI-DLC no servidor e relê o guia. */
+  recheck: () => Promise<void>;
   openDemand: (intentId: string) => Promise<void>;
   understood: () => Promise<void>;
   send: (text: string, mode: 'execute' | 'paste') => Promise<SendResult>;
   openNewSession: () => Promise<void>;
   endSession: () => Promise<void>;
+  restartSession: () => Promise<void>;
   goToNextStage: () => Promise<void>;
   dismissChanged: () => void;
 };
@@ -53,8 +80,14 @@ export function useGuide(): {
   actions: GuideActions;
   loadError: string | null;
   changedNotice: string | null;
+  /** Pasta da sessão aberta do terminal, quando a raiz mudou e a sessão ficou para trás. */
+  staleSessionFolder: string | null;
+  /** Sessão do terminal nas telas sem demanda (falha, início), onde não há `view` para trazê-la. */
+  looseSession: LooseSession | null;
 } {
   const [state, setState] = useState<GuideState>({ kind: 'loading' });
+  const [looseSession, setLooseSession] = useState<LooseSession | null>(null);
+  const [staleSessionFolder, setStaleSessionFolder] = useState<string | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [changedNotice, setChangedNotice] = useState<string | null>(null);
   const viewRef = useRef<GuideView | null>(null);
@@ -68,6 +101,12 @@ export function useGuide(): {
       const targetIntentId = selectedIntentRef.current ?? demands.activeIntentId;
       if (!targetIntentId) {
         viewRef.current = null;
+        // Sem demanda não há `view`, então a sessão vem direto do servidor (junta a existente).
+        const session = await requestSession({ sessionId: readStoredSessionId() }).catch(
+          () => null,
+        );
+        if (session) storeSessionId(session.sessionId);
+        setLooseSession(toLoose(session));
         setState(
           demands.repo.health === 'ok'
             ? { kind: 'no_intent' }
@@ -85,6 +124,19 @@ export function useGuide(): {
       setLoadError(error instanceof Error ? error.message : String(error));
     }
   }, []);
+
+  const recheck = useCallback(async () => {
+    try {
+      const result = await postRecheck();
+      setStaleSessionFolder(result.staleSessionFolder);
+      // Sem o AI-DLC não há demanda para manter aberta: a tela volta à falha, e não a uma demanda.
+      if (result.repo.health !== 'ok') selectedIntentRef.current = null;
+    } catch (error) {
+      setLoadError(error instanceof Error ? error.message : String(error));
+      return;
+    }
+    await refresh();
+  }, [refresh]);
 
   const openDemand = useCallback(
     async (intentId: string) => {
@@ -195,13 +247,23 @@ export function useGuide(): {
   const openNewSession = useCallback(async () => {
     const session = await requestSession({ newSession: true });
     if (session) storeSessionId(session.sessionId);
+    setLooseSession(toLoose(session));
+    // Uma sessão nova abre na pasta certa, então o aviso da antiga deixa de valer.
+    setStaleSessionFolder(null);
     await refresh();
   }, [refresh]);
 
   const endSession = useCallback(async () => {
     await killSession();
+    setStaleSessionFolder(null);
     await refresh();
   }, [refresh]);
+
+  /** Encerra a sessão viva e abre outra na pasta certa. Só a pessoa pede isso, no aviso da tela. */
+  const restartSession = useCallback(async () => {
+    await killSession();
+    await openNewSession();
+  }, [openNewSession]);
 
   /** Grava o reconhecimento em `.vibes/`. A etapa seguinte já vem dos arquivos do AI-DLC. */
   const goToNextStage = useCallback(async () => {
@@ -220,13 +282,17 @@ export function useGuide(): {
     state,
     loadError,
     changedNotice,
+    staleSessionFolder,
+    looseSession,
     actions: {
       refresh,
+      recheck,
       openDemand,
       understood,
       send,
       openNewSession,
       endSession,
+      restartSession,
       goToNextStage,
       dismissChanged,
     },

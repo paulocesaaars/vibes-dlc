@@ -110,6 +110,20 @@ export async function requestSession(body: {
   return readJson<SessionResponse>(response);
 }
 
+export type RecheckResult = {
+  repo: { health: RepoHealth; failedPath: string | null };
+  repoRoot: string | null;
+  /** Pasta em que a sessão viva do terminal abriu, quando ela ficou para trás. */
+  staleSessionFolder: string | null;
+};
+
+/** Tentar de novo: o servidor procura o AI-DLC outra vez, sem reiniciar (FR11.5). */
+export async function postRecheck(): Promise<RecheckResult> {
+  const response = await postJson('/api/repo/recheck', {});
+  if (!response.ok) throw new Error((await readFailure(response)).message);
+  return readJson<RecheckResult>(response);
+}
+
 export async function killSession(): Promise<void> {
   await fetch('/api/terminal/session', { method: 'DELETE' });
 }

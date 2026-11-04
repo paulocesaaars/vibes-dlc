@@ -3,6 +3,7 @@ import { writeFileSync, rmSync, utimesSync } from 'node:fs';
 import path from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { POST as postCommand } from '@/app/api/commands/route';
+import { POST as postRecheck } from '@/app/api/repo/recheck/route';
 import { GET as getDemands } from '@/app/api/demands/route';
 import { GET as getCustomization, PUT as putCustomization } from '@/app/api/customization/route';
 import { POST as postCustomMedia } from '@/app/api/customization/media/route';
@@ -146,6 +147,7 @@ describe('todas as rotas rejeitam Origin e Host de fora, sem efeito', () => {
     ['guide', 'GET', (request) => getGuide(request, paramsOf(INTENT_ID))],
     ['understood', 'POST', (request) => postUnderstood(request, paramsOf(INTENT_ID))],
     ['events', 'GET', getEvents],
+    ['repo/recheck', 'POST', postRecheck],
     ['artifacts', 'GET', (request) => getArtifacts(request, paramsOf(INTENT_ID))],
     ['artifacts/review', 'POST', (request) => postReview(request, paramsOf(INTENT_ID))],
     ['seen', 'GET', (request) => getSeen(request, paramsOf(INTENT_ID))],

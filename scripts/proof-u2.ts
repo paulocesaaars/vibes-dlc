@@ -306,15 +306,17 @@ async function stepConclusion(page: Page): Promise<void> {
 
 /** A pessoa foi em frente pelo terminal, sem passar pelo guia: a conclusão não aparece. */
 async function stepWentAheadByTerminal(page: Page): Promise<void> {
-  const ahead = 'nfr-requirements';
-  const before = 'functional-design';
+  // Etapas que o registro real nunca teve: o `audit/` copiado cresce com a construção, e eventos
+  // reais de uma etapa mais antiga (como uma pergunta aberta) mudariam o que o guia mostra aqui.
+  const ahead = 'performance-validation';
+  const before = 'incident-response';
   appendAudit('STAGE_STARTED', { Stage: before, Agent: 'aidlc-architect-agent' });
   appendAudit('GATE_APPROVED', { Stage: before, 'User Input': 'Approve' });
   appendAudit('STAGE_STARTED', { Stage: ahead, Agent: 'aidlc-architect-agent' });
   writeText(path.join(REPO.recordDir, 'construction', ahead, 'performance.md'), '# Já gravado\n');
   writeState(ahead, '-', { [before]: 'x' });
   await page.goto(BASE);
-  await waitInstruction(page, 'Requisitos não funcionais', 15_000);
+  await waitInstruction(page, 'Validação de desempenho', 15_000);
   record(
     'Com a etapa atual já andando, o guia não volta à conclusão',
     (await page.getByTestId('guide-conclusion').count()) === 0,

@@ -281,6 +281,13 @@ export class AidlcReader {
     };
   }
 
+  /** Para o vigia e solta as assinaturas. Chamado quando a raiz muda e este leitor é trocado. */
+  close(): void {
+    this.watcher?.stop();
+    this.watcher = null;
+    this.listeners.clear();
+  }
+
   private paths(): AidlcPaths | null {
     if (!this.repoRoot) return null;
     const paths = resolveAidlcPaths(this.repoRoot);

@@ -55,11 +55,23 @@ export function buildNextEnv(config: AppConfig, env: Env): Env {
 }
 
 /** Passos antes de escutar, na ordem de `reliability-design.md`. Qualquer falha aqui é fatal. */
-export function prepareStart(env: Env = process.env, cwd = process.cwd()): AppConfig {
-  if (!isNodeVersionOk()) throw new StartupError(nodeVersionMessage());
+export function prepareStart(
+  env: Env = process.env,
+  cwd = process.cwd(),
+  nodeVersion: string = process.versions.node,
+): AppConfig {
+  if (!isNodeVersionOk(nodeVersion)) throw new StartupError(nodeVersionMessage(nodeVersion));
   const config = loadConfig(env, cwd);
-  prepareStorage(config.dbPath).close();
-  killStaleShell(terminalPidFile(config));
+  // Sem raiz não há `.vibes/`: nada é criado nem apagado, e a tela de falha explica o que fazer (NFR7.3).
+  if (config.dbPath) prepareStorage(config.dbPath).close();
+  const pidFile = terminalPidFile(config);
+  if (pidFile) killStaleShell(pidFile);
+  if (!config.repoRoot) {
+    logger.warn(
+      'inicio',
+      'Não encontrei o AI-DLC acima desta pasta. O painel abre e mostra o que fazer; nada será gravado.',
+    );
+  }
   announceAddress(config);
   return config;
 }

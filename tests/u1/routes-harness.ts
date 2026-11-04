@@ -60,8 +60,8 @@ export function createHarness(options: HarnessOptions = {}): Harness {
   };
   const terminal = new TerminalManager({
     findShell: () => shell,
-    cwd: repo.root,
-    pidFile: path.join(vibesDir, 'terminal.pid'),
+    getCwd: () => repo.root,
+    getPidFile: () => path.join(vibesDir, 'terminal.pid'),
     spawnPty: options.spawnPty,
   });
   const runtime: Runtime = {

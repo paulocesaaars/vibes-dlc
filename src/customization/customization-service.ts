@@ -19,13 +19,14 @@ import { SAY_LIMITS, type SayField } from './tokens';
 export type CliKindValue = 'claude_code' | 'other';
 
 export type ErrorCode =
-  'invalid_value' | 'unsupported_type' | 'too_large' | 'stale_visit' | 'save_failed';
+  'invalid_value' | 'unsupported_type' | 'too_large' | 'stale_visit' | 'no_storage' | 'save_failed';
 
 const STATUS: Record<ErrorCode, number> = {
   invalid_value: 422,
   unsupported_type: 415,
   too_large: 413,
   stale_visit: 409,
+  no_storage: 409,
   save_failed: 500,
 };
 
@@ -107,7 +108,8 @@ export const nodeMediaFiles: MediaFiles = {
 
 type Dependencies = {
   repo: CustomizationItemRepo;
-  mediaDir: string;
+  /** `null` sem raiz do AI-DLC: não há onde guardar imagem, e o envio é recusado (NFR7.3). */
+  mediaDir: string | null;
   files?: MediaFiles;
   now?: () => Date;
   logger?: Logger;
@@ -147,7 +149,7 @@ function describe(error: unknown): string {
 
 export class CustomizationService {
   private readonly repo: CustomizationItemRepo;
-  private readonly mediaDir: string;
+  private readonly mediaDir: string | null;
   private readonly files: MediaFiles;
   private readonly now: () => Date;
   private readonly log: Logger;
@@ -185,13 +187,14 @@ export class CustomizationService {
   mediaFile(
     mediaId: string,
   ): { filePath: string; contentType: MediaType['contentType']; sizeBytes: number } | null {
-    if (!isUuid(mediaId)) return null;
+    const mediaDir = this.mediaDir;
+    if (!mediaDir || !isUuid(mediaId)) return null;
     for (const row of this.repo.all()) {
       if (row.kind !== 'media') continue;
       const media = parseMedia(row.value);
       if (media?.mediaId.toLowerCase() === mediaId.toLowerCase()) {
         return {
-          filePath: path.join(this.mediaDir, `${media.mediaId}.${extensionOf(media.contentType)}`),
+          filePath: path.join(mediaDir, `${media.mediaId}.${extensionOf(media.contentType)}`),
           contentType: media.contentType,
           sizeBytes: media.sizeBytes,
         };
@@ -242,6 +245,14 @@ export class CustomizationService {
   ): Promise<CustomizationState> {
     return this.enqueue(async () => {
       const visit = this.requireVisit(visitId);
+      const mediaDir = this.mediaDir;
+      if (!mediaDir) {
+        this.log.warn('personalização', 'no_storage operação=media');
+        throw new CustomizationError(
+          'no_storage',
+          'Sem o AI-DLC no projeto não há onde guardar a imagem. Instale o AI-DLC e tente de novo.',
+        );
+      }
       if (bytes.length < 1) {
         throw new CustomizationError('unsupported_type', 'O arquivo está vazio.');
       }
@@ -249,11 +260,11 @@ export class CustomizationService {
         throw new CustomizationError('too_large', 'O arquivo passa de 25 MB.');
       }
       const mediaId = randomUUID();
-      const temporary = path.join(this.mediaDir, `${mediaId}.tmp`);
-      const finalPath = path.join(this.mediaDir, `${mediaId}.${type.extension}`);
+      const temporary = path.join(mediaDir, `${mediaId}.tmp`);
+      const finalPath = path.join(mediaDir, `${mediaId}.${type.extension}`);
       const shown = `.vibes/media/${mediaId}.${type.extension}`;
       try {
-        await this.files.mkdir(this.mediaDir);
+        await this.files.mkdir(mediaDir);
         await this.files.writeFile(temporary, bytes);
         await this.files.rename(temporary, finalPath);
       } catch (error) {
@@ -317,6 +328,8 @@ export class CustomizationService {
   /** Varredura do início: apaga mídia sem linha e todo temporário (BR4.5). */
   sweep(): Promise<{ removed: number; aborted: boolean }> {
     return this.enqueue(async () => {
+      const mediaDir = this.mediaDir;
+      if (!mediaDir) return { removed: 0, aborted: false };
       let used: Set<string>;
       try {
         used = new Set(this.usedMediaIds(this.repo.all()));
@@ -326,7 +339,7 @@ export class CustomizationService {
       }
       let names: string[];
       try {
-        names = await this.files.readdir(this.mediaDir);
+        names = await this.files.readdir(mediaDir);
       } catch {
         return { removed: 0, aborted: false };
       }
@@ -338,7 +351,7 @@ export class CustomizationService {
           (match !== null && !used.has((match[1] as string).toLowerCase()));
         if (!orphan) continue;
         try {
-          await this.files.rm(path.join(this.mediaDir, name));
+          await this.files.rm(path.join(mediaDir, name));
           removed++;
         } catch (error) {
           this.log.error(
@@ -404,11 +417,13 @@ export class CustomizationService {
 
   /** Apaga os arquivos listados que nenhuma linha usa. Uma falha vira órfão para a próxima varredura. */
   private async removeUnused(mediaIds: string[], rows: CustomizationRow[]): Promise<void> {
+    const mediaDir = this.mediaDir;
+    if (!mediaDir) return;
     const used = new Set(this.usedMediaIds(rows));
     for (const mediaId of new Set(mediaIds)) {
       if (used.has(mediaId.toLowerCase())) continue;
       for (const extension of ['png', 'jpg', 'gif', 'webp', 'mp4', 'webm']) {
-        await this.quietRemove(path.join(this.mediaDir, `${mediaId}.${extension}`));
+        await this.quietRemove(path.join(mediaDir, `${mediaId}.${extension}`));
       }
     }
   }

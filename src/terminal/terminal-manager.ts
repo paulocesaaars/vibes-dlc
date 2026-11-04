@@ -32,8 +32,10 @@ export type PtyProcess = Pick<
 
 export type TerminalManagerOptions = {
   findShell: () => ShellLookup;
-  cwd: string | null;
-  pidFile: string;
+  /** Lido a cada sessão aberta: a raiz pode mudar sem reiniciar o servidor. */
+  getCwd: () => string | null;
+  /** Lido a cada gravação ou remoção do PID; `null` não grava nem apaga nada. */
+  getPidFile: () => string | null;
   env?: NodeJS.ProcessEnv;
   spawnPty?: (file: string, args: string[], options: nodePty.IPtyForkOptions) => PtyProcess;
   killShell?: (shell: PtyProcess) => void;
@@ -50,6 +52,10 @@ type SessionRecord = SessionView & {
   output: OutputWindow;
   pty: PtyProcess | null;
   listeners: Set<StreamListener>;
+  /** Arquivo de PID usado na abertura: é esse mesmo que se apaga no fim, mesmo após trocar a raiz. */
+  pidFile: string | null;
+  /** Pasta em que o shell abriu. A sessão fica nela mesmo depois de a raiz mudar. */
+  cwd: string | null;
 };
 
 /** A sessão não está viva: a rota responde 409 `session_dead`. */
@@ -107,6 +113,11 @@ export class TerminalManager {
   newSession(): SessionView {
     if (this.session?.status === 'alive') return toView(this.session);
     return toView(this.spawnSession());
+  }
+
+  /** Pasta em que a sessão viva abriu, ou `null` sem sessão viva. */
+  aliveSessionCwd(): string | null {
+    return this.session?.status === 'alive' ? this.session.cwd : null;
   }
 
   write(data: string): void {
@@ -187,18 +198,20 @@ export class TerminalManager {
     if (!lookup.path) return this.markUnavailable(record, lookup.searched.join(', '));
 
     try {
+      const cwd = this.options.getCwd() ?? process.cwd();
       const shell = (this.options.spawnPty ?? defaultSpawn)(lookup.path, ['--login', '-i'], {
         name: 'xterm-256color',
         cols: this.size.cols,
         rows: this.size.rows,
-        cwd: this.options.cwd ?? process.cwd(),
+        cwd,
         env: buildShellEnv(this.options.env ?? process.env),
       });
+      record.cwd = cwd;
       record.pty = shell;
       this.session = record;
       shell.onData((data) => this.handleOutput(record, data));
       shell.onExit(() => this.handleExit(record));
-      this.writePidFile(shell.pid);
+      this.writePidFile(record, shell.pid);
       this.notifyStatus();
       return record;
     } catch (error) {
@@ -234,6 +247,8 @@ export class TerminalManager {
       output: new OutputWindow(),
       pty: null,
       listeners: new Set(),
+      pidFile: null,
+      cwd: null,
     };
   }
 
@@ -254,27 +269,32 @@ export class TerminalManager {
     record.pty = null;
     for (const listener of record.listeners) listener({ type: 'ended', reason });
     record.listeners.clear();
-    this.removePidFile();
+    this.removePidFile(record);
     this.notifyStatus();
   }
 
-  private removePidFile(): void {
+  private removePidFile(record: SessionRecord): void {
+    const pidFile = record.pidFile;
+    if (!pidFile) return;
     try {
-      rmSync(this.options.pidFile, { force: true });
+      rmSync(pidFile, { force: true });
     } catch (error) {
       const reason = error instanceof Error ? error.message : String(error);
-      logger.warn('terminal', `Não foi possível apagar ${this.options.pidFile}: ${reason}.`);
+      logger.warn('terminal', `Não foi possível apagar ${pidFile}: ${reason}.`);
     }
   }
 
-  private writePidFile(pid: number): void {
+  private writePidFile(record: SessionRecord, pid: number): void {
+    const pidFile = this.options.getPidFile();
+    if (!pidFile) return;
+    record.pidFile = pidFile;
     try {
-      mkdirSync(path.dirname(this.options.pidFile), { recursive: true });
-      const record = { shellPid: pid, ownerPid: process.pid, startedAt: Date.now() };
-      writeFileSync(this.options.pidFile, JSON.stringify(record));
+      mkdirSync(path.dirname(pidFile), { recursive: true });
+      const content = { shellPid: pid, ownerPid: process.pid, startedAt: Date.now() };
+      writeFileSync(pidFile, JSON.stringify(content));
     } catch (error) {
       const reason = error instanceof Error ? error.message : String(error);
-      logger.warn('terminal', `Não foi possível gravar ${this.options.pidFile}: ${reason}.`);
+      logger.warn('terminal', `Não foi possível gravar ${pidFile}: ${reason}.`);
     }
   }
 

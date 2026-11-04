@@ -21,7 +21,11 @@ const managers: TerminalManager[] = [];
 
 function realManager(cwd = tempDir()): { manager: TerminalManager; pidFile: string; cwd: string } {
   const pidFile = path.join(tempDir(), 'terminal.pid');
-  const manager = new TerminalManager({ findShell: () => REAL_SHELL, cwd, pidFile });
+  const manager = new TerminalManager({
+    findShell: () => REAL_SHELL,
+    getCwd: () => cwd,
+    getPidFile: () => pidFile,
+  });
   managers.push(manager);
   return { manager, pidFile, cwd };
 }
@@ -183,8 +187,8 @@ describe('TerminalManager sem Git Bash', () => {
   const withoutShell = () =>
     new TerminalManager({
       findShell: () => findShell({ VIBES_SHELL: missing }),
-      cwd: null,
-      pidFile: path.join(tempDir(), 'terminal.pid'),
+      getCwd: () => null,
+      getPidFile: () => path.join(tempDir(), 'terminal.pid'),
     });
 
   it('fica unavailable, com o caminho procurado, sem outra opção', () => {
@@ -208,8 +212,8 @@ describe('TerminalManager sem Git Bash', () => {
     let lookup = findShell({ VIBES_SHELL: missing });
     const manager = new TerminalManager({
       findShell: () => lookup,
-      cwd: tempDir(),
-      pidFile: path.join(tempDir(), 'terminal.pid'),
+      getCwd: () => tempDir(),
+      getPidFile: () => path.join(tempDir(), 'terminal.pid'),
     });
     managers.push(manager);
     expect(manager.openOrJoin().status).toBe('unavailable');
@@ -220,8 +224,8 @@ describe('TerminalManager sem Git Bash', () => {
   it('uma falha ao abrir o processo vira unavailable, sem lançar erro', () => {
     const manager = new TerminalManager({
       findShell: () => ({ path: 'C:\\bash.exe', searched: ['C:\\bash.exe'] }),
-      cwd: null,
-      pidFile: path.join(tempDir(), 'terminal.pid'),
+      getCwd: () => null,
+      getPidFile: () => path.join(tempDir(), 'terminal.pid'),
       spawnPty: () => {
         throw new Error('acesso negado');
       },
@@ -244,8 +248,8 @@ describe('TerminalManager com falhas do pseudo-terminal', () => {
     };
     const manager = new TerminalManager({
       findShell: () => ({ path: 'x', searched: ['x'] }),
-      cwd: null,
-      pidFile: path.join(tempDir(), 'sub', 'terminal.pid'),
+      getCwd: () => null,
+      getPidFile: () => path.join(tempDir(), 'sub', 'terminal.pid'),
       spawnPty: () => fakePty,
       killShell: () => {
         throw new Error('já encerrado');
@@ -287,7 +291,11 @@ describe('registro em globalThis', () => {
 
   it('devolve o mesmo gerenciador em todas as chamadas', () => {
     const pidFile = path.join(tempDir(), 'terminal.pid');
-    const create = vi.fn(() => ({ findShell: () => REAL_SHELL, cwd: null, pidFile }));
+    const create = vi.fn(() => ({
+      findShell: () => REAL_SHELL,
+      getCwd: () => null,
+      getPidFile: () => pidFile,
+    }));
     const first = getTerminalManager(create);
     expect(getTerminalManager(create)).toBe(first);
     expect(create).toHaveBeenCalledTimes(1);

@@ -268,7 +268,7 @@ describe('envio de mídia', () => {
       filename: 'arte.svg',
     });
     expect(renamed.status).toBe(200);
-    const mediaDir = harness.runtime.config.mediaDir;
+    const mediaDir = harness.runtime.config.mediaDir as string;
     expect(
       existsSync(mediaDir) ? await import('node:fs').then((fs) => fs.readdirSync(mediaDir)) : [],
     ).toHaveLength(1);
@@ -419,7 +419,7 @@ describe('tempos de leitura', () => {
     }
     expect(harness.runtime.customization.readCliKind()).toBe('other');
     // Sem os arquivos, a leitura só dá certo se não depender deles.
-    rmSync(harness.runtime.config.mediaDir, { recursive: true, force: true });
+    rmSync(harness.runtime.config.mediaDir as string, { recursive: true, force: true });
     const read = () => getCustomization(appRequest('/api/customization', { method: 'GET' }));
     const state = await json(await read());
     expect(Object.keys(state.colors.custom)).toHaveLength(COLOR_KEYS.length);
@@ -479,7 +479,7 @@ describe('servir a mídia', () => {
       expect((await json(response)).code).toBe('not_found');
     }
     const before = harness.runtime.customization.read();
-    rmSync(path.join(harness.runtime.config.mediaDir, `${mediaId}.png`));
+    rmSync(path.join(harness.runtime.config.mediaDir as string, `${mediaId}.png`));
     expect((await getMedia(...mediaRequest(mediaId))).status).toBe(404);
     const after = harness.runtime.customization.read();
     expect(after.media.home?.mediaId).toBe(mediaId);

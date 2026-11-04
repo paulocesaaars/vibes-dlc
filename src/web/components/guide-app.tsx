@@ -132,7 +132,7 @@ function StageHeader({ view, consulting }: { view: GuideView; consulting: boolea
 
 /** Tela do guia: segue a estrutura de `design/prototipo/Main.dc.html`. */
 export function GuideApp() {
-  const { state, actions, loadError, changedNotice } = useGuide();
+  const { state, actions, loadError, changedNotice, staleSessionFolder, looseSession } = useGuide();
   const { custom, setCustom } = useCustomization();
   const appRef = useRef<HTMLDivElement>(null);
   const [collapsed, setCollapsed] = useState(false);
@@ -240,7 +240,8 @@ export function GuideApp() {
     [view?.stage.slug],
   );
 
-  const session = view?.session ?? null;
+  // Fora de uma demanda (falha, início), a sessão vem solta: é nela que se instala o AI-DLC.
+  const session = view?.session ?? looseSession;
   const highlight =
     moment === 'pasted' ||
     moment === 'question' ||
@@ -297,6 +298,21 @@ export function GuideApp() {
                 {loadError ? (
                   <p role="alert" className="notice-error" data-testid="guide-load-error">
                     {loadError}
+                  </p>
+                ) : null}
+                {staleSessionFolder ? (
+                  <p role="status" className="notice-error" data-testid="stale-session-notice">
+                    <strong>Atenção:</strong> a sessão aberta do terminal ficou na pasta antiga (
+                    {staleSessionFolder}). Para trabalhar na pasta do projeto, encerre esta sessão e
+                    abra uma nova.{' '}
+                    <button
+                      type="button"
+                      className="btn2"
+                      data-testid="stale-session-new-session"
+                      onClick={() => void actions.restartSession()}
+                    >
+                      Encerrar e abrir nova sessão
+                    </button>
                   </p>
                 ) : null}
                 {currentScreen === 'customize' ? (
@@ -369,18 +385,35 @@ export function GuideApp() {
                 onUnderstood={() => void handleUnderstood()}
                 onSend={(mode) => void handleSend(mode)}
                 onNewSession={() => void actions.openNewSession()}
-                onRetry={() => void actions.openNewSession()}
+                onRetry={() => void actions.recheck().then(() => actions.openNewSession())}
                 onMarkReviewed={() => void artifacts.markReviewed()}
                 onNextStage={() => void handleNextStage()}
                 onBackToGuide={() => setConsultStage(null)}
               />
             ) : state.kind === 'repo_failure' ? (
               <div className="band" data-testid="guide-band">
+                <span className="band-txt" data-testid="guide-failure-band-text">
+                  <svg
+                    aria-hidden="true"
+                    width="16"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="3"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <path d="M12 3 2 21h20L12 3zM12 10v5M12 18v.5" />
+                  </svg>{' '}
+                  O guia não consegue seguir ainda. Resolva o que está escrito acima e tente de
+                  novo.
+                </span>
                 <button
                   className="cta"
                   type="button"
                   data-testid="guide-retry-button"
-                  onClick={() => void actions.refresh()}
+                  onClick={() => void actions.recheck()}
                 >
                   Tentar de novo
                 </button>
@@ -393,7 +426,7 @@ export function GuideApp() {
         ref={terminalRef}
         sessionId={session?.sessionId ?? null}
         status={session?.status ?? 'none'}
-        title={view?.terminalTitle ?? 'MINGW64'}
+        title={view?.terminalTitle ?? looseSession?.terminalTitle ?? 'MINGW64'}
         collapsed={collapsed}
         highlight={highlight}
         hint={moment ? terminalHint(moment) : null}

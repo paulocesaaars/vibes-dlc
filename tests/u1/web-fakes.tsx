@@ -158,6 +158,9 @@ export type FakeServer = {
   sessionStatus: number;
   sendResponse: { status: number; body: Record<string, unknown> };
   understoodStatus: number;
+  /** Resposta de `POST /api/repo/recheck`: o status e a pasta da sessão que ficou para trás. */
+  recheckStatus: number;
+  staleSessionFolder: string | null;
   requests: { url: string; method: string; body: Record<string, unknown> | null }[];
   bodiesOf: (fragment: string) => Record<string, unknown>[];
 };
@@ -174,6 +177,8 @@ export function installFakeServer(view: GuideView | null): FakeServer {
     sessionStatus: 200,
     sendResponse: { status: 200, body: { status: 'written' } },
     understoodStatus: 200,
+    recheckStatus: 200,
+    staleSessionFolder: null,
     requests: [],
     bodiesOf: (fragment) =>
       server.requests
@@ -194,6 +199,19 @@ export function installFakeServer(view: GuideView | null): FakeServer {
         if (server.sessionStatus !== 200)
           return json({ code: 'erro', message: 'Falha ao abrir' }, 500);
         return json({ sessionId: 'sessao-1', status: 'alive' });
+      }
+      if (input === '/api/repo/recheck') {
+        if (server.recheckStatus !== 200) {
+          return json(
+            { code: 'recheck_failed', message: 'Não foi possível verificar o projeto.' },
+            500,
+          );
+        }
+        return json({
+          repo: server.repo,
+          repoRoot: null,
+          staleSessionFolder: server.staleSessionFolder,
+        });
       }
       if (input === '/api/demands') {
         if (server.sessionStatus === 599)

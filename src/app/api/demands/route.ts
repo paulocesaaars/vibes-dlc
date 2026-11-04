@@ -1,12 +1,13 @@
 import { rejectForeignRequest } from '@/web/request-guard';
 import { jsonResponse } from '@/web/responses';
 import { getRuntime } from '@/web/runtime';
+import { guardRuntimeChange } from '@/web/runtime-guard';
 import { decideFor } from '@/web/guide-service';
 
 export const dynamic = 'force-dynamic';
 
 /** Lista as demandas e diz qual é a ativa, sem guardar cópia no banco. */
-export async function GET(request: Request): Promise<Response> {
+async function handleGet(request: Request): Promise<Response> {
   const runtime = getRuntime();
   const rejected = rejectForeignRequest(request, runtime.config);
   if (rejected) return rejected;
@@ -36,3 +37,5 @@ export async function GET(request: Request): Promise<Response> {
     cliKind: runtime.customization.readCliKind(),
   });
 }
+
+export const GET = guardRuntimeChange(handleGet);

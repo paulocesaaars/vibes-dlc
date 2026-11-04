@@ -6,6 +6,9 @@ import { SentCommandRepo } from './sent-command-repo';
 
 export const DEFAULT_MIGRATIONS_DIR = path.join(process.cwd(), 'migrations');
 
+/** Nome que o SQLite reserva para o banco que vive só na memória do processo. */
+export const IN_MEMORY = ':memory:';
+
 /** Não foi possível criar `.vibes/` ou abrir o banco: falha fatal, com o caminho e o motivo. */
 export class StorageError extends Error {
   constructor(
@@ -31,7 +34,8 @@ export function prepareStorage(
 ): Database {
   const directory = path.dirname(dbPath);
   try {
-    mkdirSync(directory, { recursive: true });
+    // Banco em memória (sem raiz do AI-DLC) não tem pasta nem arquivo para criar.
+    if (dbPath !== IN_MEMORY) mkdirSync(directory, { recursive: true });
   } catch (error) {
     throw new StorageError(directory, describe(error));
   }

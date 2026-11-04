@@ -1,6 +1,7 @@
-import { existsSync, statSync } from 'node:fs';
+import { existsSync, realpathSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { z } from 'zod';
+import { logger } from './logger';
 import { type Env, findShell, type ShellLookup } from './shell-lookup';
 
 export const MINIMUM_NODE = { major: 22, minor: 13 };
@@ -9,10 +10,11 @@ export type AppConfig = {
   port: number;
   host: string;
   publicHost: string | null;
-  dbPath: string;
-  vibesDir: string;
+  /** `null` sem raiz: o produto não cria nem escreve nada fora de `.vibes/` da raiz (NFR7.3). */
+  dbPath: string | null;
+  vibesDir: string | null;
   /** Pasta das mídias personalizadas: `vibesDir/media` (BR7.1). */
-  mediaDir: string;
+  mediaDir: string | null;
   shell: ShellLookup;
   repoRoot: string | null;
   exposed: boolean;
@@ -40,12 +42,38 @@ export function nodeVersionMessage(version: string = process.versions.node): str
   return `O Vibes DLC exige Node.js ${MINIMUM_NODE.major}.${MINIMUM_NODE.minor} ou superior, e este é o ${version}.`;
 }
 
-/** Sobe a partir de `start` até a pasta mais próxima que contém `aidlc/` (BR1.4). */
-export function findRepoRoot(start: string): string | null {
+/** Caminho real (resolve junções e nomes curtos) e com a letra do drive em caixa única. */
+function canonicalPath(target: string): string {
+  let resolved = path.resolve(target);
+  try {
+    resolved = realpathSync.native(resolved);
+  } catch {
+    // Pasta que não existe mais: vale o caminho absoluto como está.
+  }
+  return resolved.replace(/^[a-z]:/, (drive) => drive.toUpperCase());
+}
+
+function isDirectory(target: string): boolean {
+  try {
+    return statSync(target).isDirectory();
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Sobe a partir de `start` até a pasta mais próxima que contém `aidlc/` (BR1.4). A pasta do próprio
+ * produto (`productDir`) só vale como raiz se tiver `.git`: sem ele, é a subpasta copiada para dentro
+ * de um projeto, e o `aidlc/` dentro dela não é o do projeto, então a busca continua para cima.
+ */
+export function findRepoRoot(start: string, productDir: string | null = null): string | null {
+  const product = productDir ? canonicalPath(productDir) : null;
   let current = path.resolve(start);
   for (;;) {
-    const candidate = path.join(current, 'aidlc');
-    if (existsSync(candidate) && statSync(candidate).isDirectory()) return current;
+    if (isDirectory(path.join(current, 'aidlc'))) {
+      const isProduct = product !== null && canonicalPath(current) === product;
+      if (!isProduct || existsSync(path.join(current, '.git'))) return current;
+    }
     const parent = path.dirname(current);
     if (parent === current) return null;
     current = parent;
@@ -85,17 +113,29 @@ function readDbPath(env: Env, baseDir: string): { dbPath: string; vibesDir: stri
   return { dbPath, vibesDir: path.dirname(dbPath) };
 }
 
-/** Lê e valida a configuração, sem efeitos além de procurar a raiz e o shell. */
+/**
+ * Lê e valida a configuração, sem efeitos além de procurar a raiz e o shell. Sem raiz, nada do
+ * armazenamento existe: `dbPath`, `vibesDir` e `mediaDir` ficam nulos (NFR7.3).
+ */
 export function loadConfig(env: Env = process.env, cwd: string = process.cwd()): AppConfig {
   const host = readHost('VIBES_HOST', env.VIBES_HOST, '127.0.0.1');
-  const repoRoot = findRepoRoot(cwd);
-  const paths = readDbPath(env, repoRoot ?? cwd);
+  const repoRoot = findRepoRoot(cwd, env.VIBES_PRODUCT_DIR?.trim() || null);
+  let paths: { dbPath: string; vibesDir: string } | null = null;
+  if (repoRoot) {
+    paths = readDbPath(env, repoRoot);
+  } else if (env.VIBES_DB_PATH?.trim()) {
+    logger.warn(
+      'config',
+      'VIBES_DB_PATH foi ignorada: sem o AI-DLC no projeto não há onde guardar o banco.',
+    );
+  }
   return {
     port: readPort(env),
     host,
     publicHost: readHost('VIBES_PUBLIC_HOST', env.VIBES_PUBLIC_HOST, null),
-    ...paths,
-    mediaDir: path.join(paths.vibesDir, 'media'),
+    dbPath: paths?.dbPath ?? null,
+    vibesDir: paths?.vibesDir ?? null,
+    mediaDir: paths ? path.join(paths.vibesDir, 'media') : null,
     shell: findShell(env),
     repoRoot,
     exposed: host !== '127.0.0.1',
