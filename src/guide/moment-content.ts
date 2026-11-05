@@ -107,7 +107,7 @@ function failureText(context: MomentContext): string {
     return `O Git Bash não foi encontrado. Procurei em: ${where}. Instale o Git para Windows ou defina VIBES_SHELL com o caminho do bash.exe. Depois, clique em Tentar de novo.`;
   }
   if (context.health === 'missing_aidlc') {
-    return `Não encontrei a pasta do AI-DLC: ${where}. O terminal ao lado abre na pasta onde você copiou o guia, que é a pasta do seu projeto. Instale o AI-DLC nela, pelo terminal, e clique em Tentar de novo.`;
+    return `Não encontrei a pasta do AI-DLC: ${where}. O terminal ao lado abre na pasta onde você copiou o guia, que é a pasta do seu projeto. Instale o AI-DLC nela com os passos abaixo.`;
   }
   return `Não consegui ler o registro do AI-DLC: ${where}. O terminal continua funcionando.`;
 }

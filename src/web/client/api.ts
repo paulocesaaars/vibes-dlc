@@ -256,7 +256,8 @@ export async function postCommand(request: SendRequest): Promise<SendResult> {
 }
 
 export async function postInput(sessionId: string, data: string): Promise<void> {
-  await postJson('/api/terminal/input', { sessionId, data });
+  const response = await postJson('/api/terminal/input', { sessionId, data });
+  if (!response.ok) throw new Error((await readFailure(response)).message);
 }
 
 export async function postResize(sessionId: string, cols: number, rows: number): Promise<void> {

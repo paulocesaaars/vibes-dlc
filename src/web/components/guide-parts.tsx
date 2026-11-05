@@ -6,6 +6,7 @@ import {
 } from '@/guide/moment-content';
 import type { GuideView } from '@/web/guide-service';
 import { MomentArt } from './moment-art';
+import { CommandActions } from './command-actions';
 
 export function StepBar({ stepNumber }: { stepNumber: number }) {
   if (stepNumber === 0) return null;
@@ -83,17 +84,29 @@ export function Say({ art, eyebrow, title, text, point }: SayProps) {
   );
 }
 
-export function UnderstandCard({ steps }: { steps: string[] }) {
+export type CardStep = string | { text: string; code: string };
+
+export function UnderstandCard({
+  steps,
+  title = 'Como esta etapa funciona',
+  onSendCommand,
+  sendDisabled,
+}: {
+  steps: readonly CardStep[];
+  title?: string;
+  onSendCommand?: (text: string) => Promise<void>;
+  sendDisabled?: boolean;
+}) {
   return (
     <div
       className="card fade"
       data-testid="guide-understand-card"
       style={{ padding: 18, display: 'flex', flexDirection: 'column', gap: 12 }}
     >
-      <div className="eyebrow">Como esta etapa funciona</div>
+      <div className="eyebrow">{title}</div>
       {steps.map((step, index) => (
         <div
-          key={step}
+          key={typeof step === 'string' ? step : step.text}
           className="pop"
           style={{
             animationDelay: `${index * 90}ms`,
@@ -105,7 +118,16 @@ export function UnderstandCard({ steps }: { steps: string[] }) {
           <span className="num" aria-hidden="true">
             {index + 1}
           </span>
-          <span style={{ paddingTop: 3 }}>{step}</span>
+          {typeof step === 'string' ? (
+            <span style={{ paddingTop: 3 }}>{step}</span>
+          ) : (
+            <div className="stack-6" style={{ paddingTop: 3, minWidth: 0, flex: 1 }}>
+              <span>{step.text}</span>
+              <CommandActions text={step.code} onSend={onSendCommand} sendDisabled={sendDisabled}>
+                <code className="mono step-code">{step.code}</code>
+              </CommandActions>
+            </div>
+          )}
         </div>
       ))}
     </div>
@@ -140,20 +162,22 @@ export function SendCard(props: SendCardProps) {
           {props.stageName}
         </span>
       </div>
-      <textarea
-        id="cmd"
-        className="field mono"
-        data-testid="guide-command-input"
-        rows={2}
-        style={{ fontSize: 14 }}
-        value={props.value}
-        readOnly={props.referenceOnly}
-        aria-invalid={props.issue !== null}
-        onChange={(event) => props.onChange(event.target.value)}
-        onKeyDown={(event) => {
-          if (event.key === 'Enter') event.preventDefault();
-        }}
-      />
+      <CommandActions text={props.value}>
+        <textarea
+          id="cmd"
+          className="field mono"
+          data-testid="guide-command-input"
+          rows={2}
+          style={{ fontSize: 14 }}
+          value={props.value}
+          readOnly={props.referenceOnly}
+          aria-invalid={props.issue !== null}
+          onChange={(event) => props.onChange(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter') event.preventDefault();
+          }}
+        />
+      </CommandActions>
       {props.issue ? (
         <p role="alert" className="notice-error" data-testid="guide-command-issue">
           {props.issue}

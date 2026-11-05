@@ -8,6 +8,8 @@ const nextConfig: NextConfig = {
   poweredByHeader: false,
   // O `next dev` gravaria um AGENTS.md no repositório da pessoa, e o produto só escreve em `.vibes/`.
   agentRules: false,
+  // O indicador do `next dev` cobre o texto da faixa inferior, e `npm run dev` é uso normal do guia.
+  devIndicators: false,
 };
 
 export default nextConfig;

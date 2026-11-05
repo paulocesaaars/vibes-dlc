@@ -19,6 +19,7 @@ export type CustomizableMoment = {
 
 const ART = {
   boasvindas: '/guia/boasvindas.webp',
+  nix: '/guia/nix-base.webp',
   entender: '/guia/entender.webp',
   comando: '/guia/comando.webp',
   pergunta: '/guia/pergunta.webp',
@@ -51,26 +52,35 @@ export const CUSTOMIZABLE_MOMENTS: readonly CustomizableMoment[] = [
   moment(
     'home',
     'Início',
-    ['Início', 'Escolha uma demanda para continuar ou consultar.'],
+    [
+      'Olá! Eu te guio em cada etapa',
+      'Você decide e aprova. A sua IA faz o trabalho no terminal ao lado. Escolha por onde continuar.',
+    ],
     ART.boasvindas,
   ),
   moment(
     'new_describe',
     'Nova demanda, passo 1',
-    ['Conte o que você precisa', 'Descreva a mudança com as suas palavras.'],
-    ART.boasvindas,
+    [
+      'Conte o que precisa ser feito',
+      'Uma ou duas frases bastam. Com isso eu sugiro o tamanho certo do fluxo.',
+    ],
+    ART.nix,
   ),
   moment(
     'new_level',
     'Nova demanda, passo 2',
-    ['Escolha o tamanho do trabalho', 'Sugestão: {nivel}. {motivo}'],
-    ART.entender,
+    ['Sugiro o nível {nivel}', '{motivo} A escolha é sua: confirme ou veja os outros níveis.'],
+    ART.pergunta,
     ['nivel', 'motivo'],
   ),
   moment(
     'new_confirm',
     'Nova demanda, passo 3',
-    ['Confira o comando', 'Só vai para a sua IA quando você confirmar.'],
+    [
+      'Confira o comando',
+      'É isto que será digitado na sua IA. Nada é enviado sem a sua confirmação.',
+    ],
     ART.comando,
   ),
   moment('understand', 'Entender a etapa', ['{etapa}', '{descricao}'], ART.entender, [

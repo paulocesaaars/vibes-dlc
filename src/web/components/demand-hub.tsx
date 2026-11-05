@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { type ReactNode, useEffect, useState } from 'react';
 import type { DemandRow, DecisionRow, UnitRow } from '@/aidlc/demand-browser';
 import type { CliKind } from '@/core/types';
 import type { ArtifactNote } from '@/db/artifact-note-repo';
@@ -28,12 +28,18 @@ import type { GuideView } from '@/web/guide-service';
 import type { CustomizationState } from '@/customization/customization-service';
 import { applyTokens } from '@/customization/tokens';
 import { findMoment } from '@/guide/customizable-moments';
+import { LEVELS, levelLabel } from '@/guide/levels';
+import type { GuideArt } from '@/guide/moment-content';
+import { stageName } from '@/guide/stage-content';
 import { customArt } from '@/web/compose-moment';
 import { ArtifactCard, ArtifactList } from './artifact-panel';
-import { MomentArt } from './moment-art';
+import { Say } from './guide-parts';
+import { ScreenFrame } from './screen-frame';
+import { CommandActions } from './command-actions';
 
-type Tab = 'artifacts' | 'units' | 'decisions' | 'history';
-export type HubScreen = 'guide' | 'home' | 'new' | 'tabs' | 'customize';
+export type DemandTab = 'guide' | 'artifacts' | 'units' | 'decisions' | 'history';
+export type HubScreen = 'guide' | 'home' | 'new' | 'customize';
+
 const TURN_TEXT: Record<DemandRow['turn'], string> = {
   person: 'Sua vez',
   ai: 'Vez da sua IA',
@@ -41,33 +47,91 @@ const TURN_TEXT: Record<DemandRow['turn'], string> = {
   unknown: 'Abra para ver de quem é a vez',
 };
 
-/** Frases e mídia personalizadas de um momento da navegação; vazio quando não há troca. */
-function momentOverride(
+const UNIT_STATUS: Record<UnitRow['status'], string> = {
+  pending: 'Pendente',
+  in_progress: 'Em andamento',
+  built: 'Construída',
+  approved: 'Aprovada',
+};
+
+const DECISION_KIND: Record<DecisionRow['kind'], string> = {
+  question: 'Pergunta',
+  answer: 'Resposta',
+  approval: 'Aprovação',
+  rejection: 'Alterações pedidas',
+  review: 'Revisão',
+};
+
+function formatMoment(iso: string): string {
+  const date = new Date(iso);
+  return Number.isNaN(date.getTime()) ? iso : date.toLocaleString('pt-BR');
+}
+
+/** Título, frase e arte de um momento da navegação, com a personalização aplicada. */
+function momentSay(
   custom: CustomizationState | null | undefined,
   momentKey: string,
   values: Record<string, string> = {},
-) {
+): { title: string; text: string; art: GuideArt } {
   const moment = findMoment(momentKey);
-  if (!custom || !moment) return { title: undefined, text: undefined, art: undefined };
-  const says = custom.says[momentKey];
-  const media = custom.media[momentKey];
+  if (!moment) throw new Error(`Momento desconhecido: ${momentKey}`);
+  const says = custom?.says[momentKey];
+  const media = custom?.media[momentKey];
+  const original: GuideArt = { src: moment.defaultArtSrc, alt: moment.name };
   return {
-    title: says?.title ? applyTokens(says.title, moment.tokens, values) : undefined,
-    text: says?.text ? applyTokens(says.text, moment.tokens, values) : undefined,
-    art: media ? customArt({ src: moment.defaultArtSrc, alt: moment.name }, media) : undefined,
+    title: applyTokens(says?.title ?? moment.defaultTitle, moment.tokens, values),
+    text: applyTokens(says?.text ?? moment.defaultText, moment.tokens, values),
+    art: media ? customArt(original, media) : original,
   };
+}
+
+function rowStage(row: DemandRow): string {
+  if (row.totalCount > 0 && row.doneCount >= row.totalCount) return 'Todas as etapas aprovadas';
+  return row.stageLabel ? `Agora: ${stageName(row.stageLabel)}` : 'Sem etapa em andamento';
+}
+
+function DemandLine({ row, index, onOpen }: { row: DemandRow; index: number; onOpen: () => void }) {
+  const share = row.totalCount > 0 ? row.doneCount / row.totalCount : 0;
+  return (
+    <button
+      type="button"
+      className="row"
+      data-testid="demand-row"
+      style={{ animationDelay: `${index * 60}ms` }}
+      onClick={onOpen}
+    >
+      <span className="row-main">
+        <span className="row-title">{row.title}</span>
+        <span className="row-meta">
+          {levelLabel(row.scope)} · {rowStage(row)}
+        </span>
+        <span className="track">
+          <span className="track-fill" style={{ transform: `scaleX(${share.toFixed(3)})` }} />
+        </span>
+        {row.readable ? null : (
+          <span className="notice-error">Registro ilegível: {row.failedPath}</span>
+        )}
+      </span>
+      {row.isActive ? <span className="tag">Ativa</span> : null}
+      <span className="tag" style={{ color: 'var(--blueText)' }}>
+        {TURN_TEXT[row.turn]}
+      </span>
+    </button>
+  );
 }
 
 export function Home({
   onOpen,
   onNew,
   custom,
+  notices,
 }: {
   onOpen: (intentId: string) => void;
   onNew: () => void;
   custom?: CustomizationState | null;
+  notices?: ReactNode;
 }) {
-  const shown = momentOverride(custom, 'home');
+  const shown = momentSay(custom, 'home');
   const [rows, setRows] = useState<DemandRow[]>([]);
   useEffect(() => {
     void fetchDemandRows().then(setRows);
@@ -76,30 +140,78 @@ export function Home({
     return () => events.close();
   }, []);
   return (
-    <section data-testid="demand-home">
-      {shown.art ? <MomentArt art={shown.art} /> : null}
-      <h1>{shown.title ?? 'Início'}</h1>
-      <p>{shown.text ?? 'Escolha uma demanda para continuar ou consultar.'}</p>
-      <button data-testid="new-demand" onClick={onNew}>
-        Nova demanda
-      </button>
+    <ScreenFrame
+      testId="demand-home"
+      notices={notices}
+      band={
+        <div className="band" data-testid="home-band">
+          <span className="band-txt">Quer começar outro trabalho?</span>
+          <button type="button" className="cta" data-testid="new-demand" onClick={onNew}>
+            Nova demanda
+          </button>
+        </div>
+      }
+    >
+      <Say art={shown.art} eyebrow="Bem-vindo" title={shown.title} text={shown.text} />
       {rows.length === 0 ? (
-        <p>Nenhuma demanda ainda. Crie a primeira para começar.</p>
+        <p className="muted">Nenhuma demanda ainda. Crie a primeira para começar.</p>
       ) : (
-        <ul>
-          {rows.map((row) => (
-            <li key={row.intentId}>
-              <button data-testid="demand-row" onClick={() => onOpen(row.intentId)}>
-                <strong>{row.title}</strong> · {row.scope} · {row.stageLabel ?? 'sem etapa'} ·{' '}
-                {row.doneCount}/{row.totalCount} · {TURN_TEXT[row.turn]}{' '}
-                {row.isActive ? '· ativa' : ''}
-                {row.readable ? '' : ` · Registro ilegível: ${row.failedPath}`}
-              </button>
-            </li>
+        <div className="fade stack-10">
+          {rows.map((row, index) => (
+            <DemandLine
+              key={row.intentId}
+              row={row}
+              index={index}
+              onOpen={() => onOpen(row.intentId)}
+            />
           ))}
-        </ul>
+        </div>
       )}
-    </section>
+    </ScreenFrame>
+  );
+}
+
+type NewDemandStep = 'describe' | 'level' | 'confirm' | 'waiting';
+
+const WAITING_SAY = {
+  title: 'Esperando a sua IA',
+  text: 'Esperando sua IA criar a demanda. Ela pode fazer perguntas no terminal. Se demorar mais de 10 minutos, confira o terminal.',
+  art: { src: '/guia/trabalhando.webp', alt: 'A Nix esperando a sua IA trabalhar' },
+};
+
+function ScopeCard({
+  level,
+  suggested,
+  picked,
+  index,
+  onPick,
+}: {
+  level: (typeof LEVELS)[number];
+  suggested: boolean;
+  picked: boolean;
+  index: number;
+  onPick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      className={picked ? 'scope scope-on' : 'scope'}
+      data-testid={`scope-${level.name}`}
+      aria-pressed={picked}
+      style={{ animationDelay: `${index * 40}ms` }}
+      onClick={onPick}
+    >
+      <span className="scope-head">
+        <strong className="row-title">{level.label}</strong>
+        {suggested ? (
+          <span className="eyebrow" style={{ color: '#222222' }}>
+            Sugerido
+          </span>
+        ) : null}
+      </span>
+      <span>{level.description}</span>
+      <span className="row-meta">Profundidade {level.depth}</span>
+    </button>
   );
 }
 
@@ -107,14 +219,18 @@ export function NewDemand({
   onCancel,
   onCreated,
   custom,
+  notices,
 }: {
   onCancel: () => void;
   onCreated: () => void;
   custom?: CustomizationState | null;
+  notices?: ReactNode;
 }) {
-  const [step, setStep] = useState<'describe' | 'level' | 'confirm' | 'waiting'>('describe');
+  const [step, setStep] = useState<NewDemandStep>('describe');
   const [description, setDescription] = useState('');
   const [scope, setScope] = useState<Level>('feature');
+  const [suggested, setSuggested] = useState<Level>('feature');
+  const [showAll, setShowAll] = useState(false);
   const [reason, setReason] = useState('');
   const [command, setCommand] = useState('');
   const [kind, setKind] = useState<'new_demand' | 'analysis'>('new_demand');
@@ -148,6 +264,8 @@ export function NewDemand({
     if (step === 'describe' && description.trim()) {
       const suggestion = suggestLevel(description);
       setScope(suggestion.scope);
+      setSuggested(suggestion.scope);
+      setShowAll(false);
       setReason(suggestion.reason);
       setStep('level');
     } else if (step === 'level') {
@@ -171,123 +289,238 @@ export function NewDemand({
     }
     setStep(kind === 'analysis' ? 'level' : 'waiting');
   }
+
   const momentKey =
     step === 'describe' ? 'new_describe' : step === 'level' ? 'new_level' : 'new_confirm';
-  const shown = momentOverride(custom, momentKey, { nivel: scope, motivo: reason });
+  const shown =
+    step === 'waiting'
+      ? WAITING_SAY
+      : momentSay(custom, momentKey, { nivel: levelLabel(scope), motivo: reason });
+  const stepNumber = step === 'describe' ? 1 : step === 'level' ? 2 : 3;
+  const visible = LEVELS.filter(
+    (level) => showAll || level.name === scope || level.name === suggested,
+  );
+
   return (
-    <section data-testid="new-demand-flow">
-      {shown.art ? <MomentArt art={shown.art} /> : null}
-      <h1>{shown.title ?? 'Nova demanda'}</h1>
-      {shown.text ? <p data-testid="new-demand-text">{shown.text}</p> : null}
-      <p>Passo {step === 'describe' ? 1 : step === 'level' ? 2 : 3} de 3</p>
-      {step === 'describe' ? (
-        <>
-          <label>
-            O que você quer fazer?
-            <textarea
-              data-testid="demand-description"
-              maxLength={2000}
-              value={description}
-              onChange={(event) => setDescription(event.target.value)}
-            />
-          </label>
-          <button data-testid="demand-next" disabled={!description.trim()} onClick={next}>
-            Continuar
-          </button>
-        </>
-      ) : null}
-      {step === 'level' ? (
-        <>
-          <p>
-            Nível sugerido: <strong>{scope}</strong>. {reason}
-          </p>
-          <label>
-            Escolher nível
-            <select
-              data-testid="demand-level"
-              value={scope}
-              onChange={(event) => setScope(event.target.value as Level)}
-            >
-              {[
-                'express',
-                'bugfix',
-                'security-patch',
-                'refactor',
-                'poc',
-                'infra',
-                'mvp',
-                'classic',
-                'workshop',
-                'feature',
-                'enterprise',
-              ].map((value) => (
-                <option key={value}>{value}</option>
-              ))}
-            </select>
-          </label>
-          <button
-            data-testid="analyze-level"
-            onClick={() => {
-              setKind('analysis');
-              setCommand(buildAnalysisCommand(description));
-              setStep('confirm');
-            }}
-          >
-            Pedir análise à sua IA
-          </button>
-          <button data-testid="demand-back" onClick={() => setStep('describe')}>
-            Voltar
-          </button>
-          <button data-testid="demand-next" onClick={next}>
-            Continuar
-          </button>
-        </>
-      ) : null}
-      {step === 'confirm' ? (
-        <>
-          <p>Confira o comando. Sua IA precisa estar aberta no terminal.</p>
-          <textarea
-            data-testid="demand-command"
-            value={command}
-            onChange={(event) => setCommand(event.target.value)}
-          />
-          {cliKind === 'claude_code' ? (
+    <ScreenFrame
+      testId="new-demand-flow"
+      notices={notices}
+      band={
+        <div className="band" data-testid="new-demand-band">
+          {step === 'describe' ? (
             <>
-              <button data-testid="demand-send" onClick={() => void send('execute')}>
-                Confirmar e enviar
+              <button type="button" className="btn2" data-testid="demand-cancel" onClick={onCancel}>
+                Cancelar
               </button>
-              <button data-testid="demand-paste" onClick={() => void send('paste')}>
-                Colar sem executar
+              <button
+                type="button"
+                className="cta"
+                data-testid="demand-next"
+                disabled={!description.trim()}
+                onClick={next}
+              >
+                Continuar
               </button>
             </>
+          ) : null}
+          {step === 'level' ? (
+            <>
+              <button
+                type="button"
+                className="btn2"
+                data-testid="demand-back"
+                onClick={() => setStep('describe')}
+              >
+                Voltar
+              </button>
+              <button type="button" className="cta" data-testid="demand-next" onClick={next}>
+                Usar {levelLabel(scope)}
+              </button>
+            </>
+          ) : null}
+          {step === 'confirm' ? (
+            <>
+              <button type="button" className="btn2" onClick={() => setStep('level')}>
+                Voltar
+              </button>
+              {cliKind === 'claude_code' ? (
+                <>
+                  <button
+                    type="button"
+                    className="btn2"
+                    data-testid="demand-paste"
+                    onClick={() => void send('paste')}
+                  >
+                    Colar sem executar
+                  </button>
+                  <button
+                    type="button"
+                    className="cta"
+                    data-testid="demand-send"
+                    onClick={() => void send('execute')}
+                  >
+                    Confirmar e executar
+                  </button>
+                </>
+              ) : null}
+            </>
+          ) : null}
+          {step === 'waiting' ? (
+            <button type="button" className="btn2" data-testid="demand-cancel" onClick={onCancel}>
+              Voltar ao início
+            </button>
+          ) : null}
+        </div>
+      }
+    >
+      <Say
+        art={shown.art}
+        eyebrow={`Nova demanda · ${stepNumber} de 3`}
+        title={shown.title}
+        text={shown.text}
+      />
+      {step === 'describe' ? (
+        <div className="fade stack-6">
+          <label htmlFor="demand-description" className="field-label">
+            O que precisa ser feito?
+          </label>
+          <textarea
+            id="demand-description"
+            className="field"
+            rows={4}
+            data-testid="demand-description"
+            maxLength={2000}
+            placeholder="Ex.: Corrigir a perda do histórico ao recarregar a página"
+            value={description}
+            onChange={(event) => setDescription(event.target.value)}
+          />
+        </div>
+      ) : null}
+      {step === 'level' ? (
+        <div className="fade stack-10">
+          {visible.map((level, index) => (
+            <ScopeCard
+              key={level.name}
+              level={level}
+              suggested={level.name === suggested}
+              picked={level.name === scope}
+              index={index}
+              onPick={() => setScope(level.name)}
+            />
+          ))}
+          <div className="button-row">
+            <button
+              type="button"
+              className="btn2"
+              data-testid="levels-toggle"
+              onClick={() => setShowAll((value) => !value)}
+            >
+              {showAll ? 'Ver menos níveis' : 'Ver todos os níveis'}
+            </button>
+            <button
+              type="button"
+              className="btn2"
+              data-testid="analyze-level"
+              onClick={() => {
+                setKind('analysis');
+                setCommand(buildAnalysisCommand(description));
+                setStep('confirm');
+              }}
+            >
+              Pedir análise à sua IA
+            </button>
+          </div>
+        </div>
+      ) : null}
+      {step === 'confirm' ? (
+        <div className="card fade card-pad stack-8">
+          <label htmlFor="demand-command" className="field-label">
+            Comando que vai para a sua IA
+          </label>
+          <CommandActions text={command}>
+            <textarea
+              id="demand-command"
+              className="field mono"
+              rows={3}
+              style={{ fontSize: 13 }}
+              data-testid="demand-command"
+              value={command}
+              onChange={(event) => setCommand(event.target.value)}
+            />
+          </CommandActions>
+          {cliKind === 'claude_code' ? (
+            <p className="muted small">A sua IA precisa estar aberta no terminal para receber.</p>
           ) : (
-            <p data-testid="other-cli-reference">
+            <p className="muted" data-testid="other-cli-reference">
               Com Outra CLI, copie o comando acima para usar na sua IA. O painel não o envia.
             </p>
           )}
-          <button onClick={() => setStep('level')}>Voltar</button>
-        </>
+        </div>
       ) : null}
-      {step === 'waiting' ? (
-        <p role="status">
-          Esperando sua IA criar a demanda. Ela pode fazer perguntas no terminal. Se demorar mais de
-          10 minutos, confira o terminal.
+      {issue ? (
+        <p role="alert" className="notice-error">
+          {issue}
         </p>
       ) : null}
-      {issue ? <p role="alert">{issue}</p> : null}
-      <button data-testid="demand-cancel" onClick={onCancel}>
-        Cancelar
-      </button>
-    </section>
+    </ScreenFrame>
   );
 }
 
-export function DemandTabs({ view, onBack }: { view: GuideView; onBack: () => void }) {
+/** As abas da demanda, no cabeçalho da etapa. Os totais vêm das mesmas rotas que as abas leem. */
+export function DemandTabBar({
+  intentId,
+  version,
+  tab,
+  onPick,
+}: {
+  intentId: string;
+  version: string | null;
+  tab: DemandTab;
+  onPick: (tab: DemandTab) => void;
+}) {
+  const [decisions, setDecisions] = useState<number | null>(null);
+  const [commands, setCommands] = useState<number | null>(null);
+  useEffect(() => {
+    let current = true;
+    void fetchDecisions(intentId)
+      .then((rows) => current && setDecisions(rows.length))
+      .catch(() => current && setDecisions(null));
+    void fetchCommandHistory(intentId)
+      .then((rows) => current && setCommands(rows.length))
+      .catch(() => current && setCommands(null));
+    return () => {
+      current = false;
+    };
+  }, [intentId, version]);
+  const total = (count: number | null) => (count === null ? '' : ` (${count})`);
+  const tabs: [DemandTab, string][] = [
+    ['guide', 'Guia'],
+    ['artifacts', 'Artefatos'],
+    ['units', 'Unidades e ciclos'],
+    ['decisions', `Decisões${total(decisions)}`],
+    ['history', `Comandos${total(commands)}`],
+  ];
+  return (
+    <div role="tablist" aria-label="Consultar" className="tab-list">
+      {tabs.map(([value, label]) => (
+        <button
+          key={value}
+          type="button"
+          role="tab"
+          className={tab === value ? 'ctab ctab-on' : 'ctab'}
+          data-testid={`tab-${value}`}
+          aria-selected={tab === value}
+          onClick={() => onPick(value)}
+        >
+          {label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function ArtifactsTab({ view }: { view: GuideView }) {
   const intentId = view.intentId;
-  const [tab, setTab] = useState<Tab>('artifacts');
-  const [units, setUnits] = useState<UnitRow[]>([]);
-  const [decisions, setDecisions] = useState<DecisionRow[]>([]);
-  const [history, setHistory] = useState<SentCommand[]>([]);
   const [stage, setStage] = useState(view.stage.slug);
   const artifacts = useArtifacts(
     { intentId, stage, unit: null, consult: true, version: view.lastChangedAt },
@@ -297,11 +530,6 @@ export function DemandTabs({ view, onBack }: { view: GuideView; onBack: () => vo
   const [notes, setNotes] = useState<ArtifactNote[]>([]);
   const [note, setNote] = useState('');
   const [issue, setIssue] = useState<string | null>(null);
-  useEffect(() => {
-    if (tab === 'units') void fetchUnits(intentId).then(setUnits);
-    if (tab === 'decisions') void fetchDecisions(intentId).then(setDecisions);
-    if (tab === 'history') void fetchCommandHistory(intentId).then(setHistory);
-  }, [intentId, tab]);
   useEffect(() => {
     if (path) void fetchNotes(intentId, path).then(setNotes);
   }, [intentId, path]);
@@ -315,113 +543,173 @@ export function DemandTabs({ view, onBack }: { view: GuideView; onBack: () => vo
     }
   }
   return (
-    <section data-testid="demand-tabs">
-      <button onClick={onBack}>Voltar ao guia</button>
-      <nav>
-        {(
-          [
-            ['artifacts', 'Artefatos'],
-            ['units', 'Unidades e ciclos'],
-            ['decisions', 'Decisões'],
-            ['history', 'Histórico'],
-          ] as const
-        ).map(([value, label]) => (
-          <button
-            key={value}
-            data-testid={`tab-${value}`}
-            aria-pressed={tab === value}
-            onClick={() => setTab(value)}
-          >
-            {label}
-          </button>
+    <div className="fade stack-14">
+      <div className="stack-6">
+        <label htmlFor="artifact-stage" className="field-label">
+          Etapa
+        </label>
+        <select
+          id="artifact-stage"
+          className="field"
+          data-testid="artifact-stage"
+          value={stage}
+          onChange={(event) => setStage(event.target.value)}
+        >
+          {view.trail
+            .flatMap((phase) => phase.stages)
+            .map((item) => (
+              <option key={item.slug} value={item.slug}>
+                {item.name}
+              </option>
+            ))}
+        </select>
+      </div>
+      {artifacts.list ? (
+        <ArtifactList
+          title="Artefatos da etapa"
+          state={artifacts}
+          items={artifacts.list.items}
+          selectedPath={path}
+          canPick
+        />
+      ) : (
+        <p className="muted">Carregando artefatos…</p>
+      )}
+      {artifacts.list?.items.length === 0 ? (
+        <p className="muted">Esta etapa não tem artefatos gravados.</p>
+      ) : null}
+      {artifacts.list?.selected ? <ArtifactCard artifact={artifacts.list.selected} /> : null}
+      <div className="stack-6">
+        <label htmlFor="note-text" className="field-label">
+          Suas notas
+        </label>
+        {notes.map((entry) => (
+          <p key={entry.noteId} className="card fade note">
+            {entry.text}
+          </p>
         ))}
-      </nav>
-      {tab === 'artifacts' ? (
-        <div>
-          <label>
-            Etapa{' '}
-            <select
-              data-testid="artifact-stage"
-              value={stage}
-              onChange={(event) => setStage(event.target.value)}
-            >
-              {view.trail
-                .flatMap((phase) => phase.stages)
-                .map((item) => (
-                  <option key={item.slug} value={item.slug}>
-                    {item.name}
-                  </option>
-                ))}
-            </select>
-          </label>
-          {artifacts.list ? (
-            <ArtifactList
-              title="Artefatos da etapa"
-              state={artifacts}
-              items={artifacts.list.items}
-              selectedPath={path}
-              canPick
-            />
-          ) : (
-            <p>Carregando artefatos…</p>
-          )}
-          {artifacts.list?.selected ? <ArtifactCard artifact={artifacts.list.selected} /> : null}
-          <p>Escolha um artefato para escrever uma nota.</p>
+        <div className="button-row">
           <textarea
+            id="note-text"
+            className="field note-input"
+            rows={2}
             data-testid="note-text"
+            maxLength={4000}
+            placeholder={path ? undefined : 'Escolha um artefato para escrever uma nota.'}
             value={note}
             onChange={(event) => setNote(event.target.value)}
-            maxLength={4000}
           />
           <button
+            type="button"
+            className="btn2"
             data-testid="note-save"
             disabled={!path || !note.trim()}
             onClick={() => void saveNote()}
           >
             Salvar nota
           </button>
-          {notes.map((entry) => (
-            <p key={entry.noteId}>{entry.text}</p>
-          ))}
         </div>
+        <p className="muted small">
+          Ficam em <span className="mono">.vibes/</span>, fora do repositório versionado. Notas não
+          são enviadas à sua IA.
+        </p>
+      </div>
+      {issue ? (
+        <p role="alert" className="notice-error">
+          {issue}
+        </p>
       ) : null}
-      {tab === 'units' ? (
-        <ul>
-          {units.map((unit) => (
-            <li key={unit.unitName}>
-              {unit.unitName} · {unit.status} · {unit.description}
-            </li>
-          ))}
-        </ul>
-      ) : null}
-      {tab === 'decisions' ? (
-        <ul>
-          {decisions.map((row, index) => (
-            <li key={`${row.at}-${index}`}>
-              {row.at} · {row.kind} · {row.stage}: {row.text}
-            </li>
-          ))}
-        </ul>
-      ) : null}
-      {tab === 'history' ? (
-        <>
-          <p>Só aparecem comandos enviados pelo painel.</p>
-          <ul>
-            {history.map((entry) => (
-              <li key={entry.commandId}>
-                {entry.sentAt} · {entry.kind}: {entry.text}
-              </li>
-            ))}
-          </ul>
-        </>
-      ) : null}
-      {(tab === 'units' && units.length === 0) ||
-      (tab === 'decisions' && decisions.length === 0) ||
-      (tab === 'history' && history.length === 0) ? (
-        <p>Ainda não há itens nesta aba.</p>
-      ) : null}
-      {issue ? <p role="alert">{issue}</p> : null}
+    </div>
+  );
+}
+
+const EMPTY_TAB = <p className="muted">Ainda não há itens nesta aba.</p>;
+
+function UnitsTab({ intentId }: { intentId: string }) {
+  const [units, setUnits] = useState<UnitRow[]>([]);
+  useEffect(() => {
+    void fetchUnits(intentId).then(setUnits);
+  }, [intentId]);
+  return (
+    <section className="fade stack-8">
+      <h2 className="section-title">Unidades</h2>
+      {units.length === 0 ? EMPTY_TAB : null}
+      {units.map((unit, index) => (
+        <div
+          key={unit.unitName}
+          className="card pop unit-card"
+          style={{ animationDelay: `${index * 40}ms` }}
+        >
+          <div className="unit-head">
+            <strong className="strong-900">{unit.unitName}</strong>
+            <span className="tag">{UNIT_STATUS[unit.status]}</span>
+          </div>
+          <span>{unit.description}</span>
+        </div>
+      ))}
     </section>
+  );
+}
+
+function DecisionsTab({ intentId }: { intentId: string }) {
+  const [decisions, setDecisions] = useState<DecisionRow[]>([]);
+  useEffect(() => {
+    void fetchDecisions(intentId).then(setDecisions);
+  }, [intentId]);
+  return (
+    <div className="fade stack-2">
+      <p className="muted" style={{ marginBottom: 8 }}>
+        Lidas do registro do AI-DLC. Decisões e aprovações são dadas no terminal.
+      </p>
+      {decisions.length === 0 ? EMPTY_TAB : null}
+      {decisions.map((row, index) => (
+        <div key={`${row.at}-${index}`} className="log-row">
+          <div className="log-head">
+            <strong className="strong-900">{DECISION_KIND[row.kind]}</strong>
+            <span className="row-meta">
+              {row.stage ? `${stageName(row.stage)} · ` : ''}
+              {formatMoment(row.at)}
+            </span>
+          </div>
+          <span>{row.text}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function HistoryTab({ intentId }: { intentId: string }) {
+  const [history, setHistory] = useState<SentCommand[]>([]);
+  useEffect(() => {
+    void fetchCommandHistory(intentId).then(setHistory);
+  }, [intentId]);
+  return (
+    <div className="fade stack-2">
+      <p className="muted" style={{ marginBottom: 8 }}>
+        Só aparecem comandos enviados pelo painel.
+      </p>
+      {history.length === 0 ? EMPTY_TAB : null}
+      {history.map((entry) => (
+        <div key={entry.commandId} className="log-row">
+          <span className="row-meta">
+            {formatMoment(entry.sentAt)} · {entry.kind}
+          </span>
+          <code className="mono log-code">{entry.text}</code>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/** O conteúdo de cada aba da demanda. A aba Guia é o próprio guia, fora daqui. */
+export function DemandTabs({ view, tab }: { view: GuideView; tab: Exclude<DemandTab, 'guide'> }) {
+  return (
+    <div data-testid="demand-tabs" className="stack-18">
+      {tab === 'artifacts' ? <ArtifactsTab view={view} /> : null}
+      {tab === 'units' ? <UnitsTab intentId={view.intentId} /> : null}
+      {tab === 'decisions' ? <DecisionsTab intentId={view.intentId} /> : null}
+      {tab === 'history' ? <HistoryTab intentId={view.intentId} /> : null}
+    </div>
   );
 }
 
@@ -450,28 +738,51 @@ export function Activation({
     }
   }
   return (
-    <div data-testid="consultation-band">
-      <p>Esta demanda está em modo de consulta. Para conduzi-la, torne-a ativa no AI-DLC.</p>
+    <div className="card pop card-pad stack-8" data-testid="consultation-band">
+      <span>Esta demanda está em modo de consulta. Para conduzi-la, torne-a ativa no AI-DLC.</span>
       {confirming ? (
         <>
-          <code>/aidlc intent switch {intentId}</code>
-          {cliKind === 'claude_code' ? (
-            <button data-testid="activate-confirm" onClick={() => void send()}>
-              Confirmar e enviar
-            </button>
-          ) : (
-            <p data-testid="other-cli-reference">
+          <CommandActions text={`/aidlc intent switch ${intentId}`}>
+            <code className="mono log-code">/aidlc intent switch {intentId}</code>
+          </CommandActions>
+          {cliKind === 'claude_code' ? null : (
+            <p className="muted" data-testid="other-cli-reference">
               Com Outra CLI, copie o comando acima para usar na sua IA. O painel não o envia.
             </p>
           )}
-          <button onClick={() => setConfirming(false)}>Cancelar</button>
+          <div className="button-row">
+            {cliKind === 'claude_code' ? (
+              <button
+                type="button"
+                className="cta"
+                data-testid="activate-confirm"
+                onClick={() => void send()}
+              >
+                Confirmar e enviar
+              </button>
+            ) : null}
+            <button type="button" className="btn2" onClick={() => setConfirming(false)}>
+              Cancelar
+            </button>
+          </div>
         </>
       ) : (
-        <button data-testid="activate-demand" onClick={() => setConfirming(true)}>
-          Tornar esta demanda ativa
-        </button>
+        <div className="button-row">
+          <button
+            type="button"
+            className="btn2"
+            data-testid="activate-demand"
+            onClick={() => setConfirming(true)}
+          >
+            Tornar esta demanda ativa
+          </button>
+        </div>
       )}
-      {issue ? <p role="alert">{issue}</p> : null}
+      {issue ? (
+        <p role="alert" className="notice-error">
+          {issue}
+        </p>
+      ) : null}
     </div>
   );
 }

@@ -3,20 +3,30 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { GuideDecision, Moment } from '@/core/types';
 import { momentContent, NO_ACTIVE_INTENT_CONTENT, terminalHint } from '@/guide/moment-content';
+import { REPO_SETUP_STEPS, REPO_SETUP_TITLE } from '@/guide/repo-setup';
 import type { ArtifactQuery } from '@/web/client/use-artifacts';
 import { useArtifacts } from '@/web/client/use-artifacts';
 import { applyColors } from '@/web/client/apply-colors';
 import { useCustomization } from '@/web/client/use-customization';
 import { useGuide, type GuideState } from '@/web/client/use-guide';
+import { postInput } from '@/web/client/api';
 import type { GuideView } from '@/web/guide-service';
 import { GuideBand } from './guide-band';
 import { ConsultBody, GuideBody } from './guide-body';
-import { Say, StepBar } from './guide-parts';
+import { Say, StepBar, UnderstandCard } from './guide-parts';
 import { Logo } from './logo';
 import { TerminalPanel, type TerminalPanelHandle } from './terminal-panel';
 import { Trail } from './trail';
 import { Customize } from './customize';
-import { Activation, DemandTabs, Home, NewDemand, type HubScreen } from './demand-hub';
+import {
+  Activation,
+  DemandTabBar,
+  DemandTabs,
+  Home,
+  NewDemand,
+  type DemandTab,
+  type HubScreen,
+} from './demand-hub';
 
 const MAX_COMMAND_LENGTH = 8000;
 
@@ -56,7 +66,15 @@ function formatTime(iso: string): string {
   return new Date(iso).toLocaleTimeString('pt-BR');
 }
 
-function NoGuideBody({ state }: { state: Exclude<GuideState, { kind: 'guide' }> }) {
+function NoGuideBody({
+  state,
+  onSendCommand,
+  sendDisabled,
+}: {
+  state: Exclude<GuideState, { kind: 'guide' }>;
+  onSendCommand: (text: string) => Promise<void>;
+  sendDisabled: boolean;
+}) {
   if (state.kind === 'loading') {
     return (
       <p role="status" style={{ margin: 0, color: 'var(--gray)' }}>
@@ -73,7 +91,17 @@ function NoGuideBody({ state }: { state: Exclude<GuideState, { kind: 'guide' }> 
     failedPath: state.failedPath,
   });
   return (
-    <Say art={content.art} eyebrow={content.eyebrow} title={content.title} text={content.text} />
+    <>
+      <Say art={content.art} eyebrow={content.eyebrow} title={content.title} text={content.text} />
+      {state.health === 'missing_aidlc' ? (
+        <UnderstandCard
+          steps={REPO_SETUP_STEPS}
+          title={REPO_SETUP_TITLE}
+          onSendCommand={onSendCommand}
+          sendDisabled={sendDisabled}
+        />
+      ) : null}
+    </>
   );
 }
 
@@ -85,7 +113,17 @@ function artifactQuery(view: GuideView | null, consultStage: string | null): Art
   return { ...base, stage: view.stage.slug, unit: view.stage.unit, consult: false };
 }
 
-function StageHeader({ view, consulting }: { view: GuideView; consulting: boolean }) {
+function StageHeader({
+  view,
+  consulting,
+  tab,
+  onPickTab,
+}: {
+  view: GuideView;
+  consulting: boolean;
+  tab: DemandTab;
+  onPickTab: (tab: DemandTab) => void;
+}) {
   const label = view.stage.unit ? `${view.stage.unit} · ${view.stage.name}` : view.stage.name;
   return (
     <div
@@ -106,15 +144,23 @@ function StageHeader({ view, consulting }: { view: GuideView; consulting: boolea
           gap: '4px 12px',
         }}
       >
-        <strong
-          data-testid="guide-stage-name"
-          style={{ fontWeight: 900, fontSize: 17, minWidth: 0 }}
-        >
-          {label}
-        </strong>
-        <span className="tag" data-testid="guide-turn" style={{ color: 'var(--blueText)' }}>
-          {view.content.turnLabel}
+        <span className="stage-title">
+          <strong
+            data-testid="guide-stage-name"
+            style={{ fontWeight: 900, fontSize: 17, minWidth: 0 }}
+          >
+            {label}
+          </strong>
+          <span className="tag" data-testid="guide-turn" style={{ color: 'var(--blueText)' }}>
+            {view.content.turnLabel}
+          </span>
         </span>
+        <DemandTabBar
+          intentId={view.intentId}
+          version={view.lastChangedAt}
+          tab={tab}
+          onPick={onPickTab}
+        />
       </div>
       {consulting ? null : <StepBar stepNumber={view.content.stepNumber} />}
       {view.lastChangedAt ? (
@@ -143,6 +189,7 @@ export function GuideApp() {
   const [consultStage, setConsultStage] = useState<string | null>(null);
   const [shownMoment, setShownMoment] = useState<Moment | undefined>(undefined);
   const [screen, setScreen] = useState<HubScreen>('guide');
+  const [tab, setTab] = useState<DemandTab>('guide');
   const sendingRef = useRef(false);
   const terminalRef = useRef<TerminalPanelHandle>(null);
   const pendingFocus = useRef(false);
@@ -235,6 +282,7 @@ export function GuideApp() {
   /** A etapa atual volta ao guia. As outras abrem só para consulta, sem mudar o momento (BR8.2). */
   const handleTrailSelect = useCallback(
     (slug: string) => {
+      setTab('guide');
       setConsultStage(slug === view?.stage.slug ? null : slug);
     },
     [view?.stage.slug],
@@ -242,6 +290,25 @@ export function GuideApp() {
 
   // Fora de uma demanda (falha, início), a sessão vem solta: é nela que se instala o AI-DLC.
   const session = view?.session ?? looseSession;
+  async function sendSetupCommand(text: string): Promise<void> {
+    if (!session?.sessionId || session.status !== 'alive') {
+      throw new Error('Abra uma sessão no terminal ao lado antes de enviar.');
+    }
+    if (staleSessionFolder) {
+      throw new Error('Abra uma nova sessão na pasta do projeto antes de enviar.');
+    }
+    if (
+      commandIssue(text) ||
+      Array.from(text).some(
+        (character) => character.charCodeAt(0) < 32 || character.charCodeAt(0) === 127,
+      )
+    ) {
+      throw new Error('O comando precisa ter uma única linha, sem caracteres de controle.');
+    }
+    await postInput(session.sessionId, text);
+    setCollapsed(false);
+    requestAnimationFrame(() => terminalRef.current?.focus());
+  }
   const highlight =
     moment === 'pasted' ||
     moment === 'question' ||
@@ -249,133 +316,150 @@ export function GuideApp() {
     (moment === 'following' && view?.decision.turn === 'person');
   const consulting = consultStage !== null;
   const issue = commandIssue(draft);
+  const onGuideScreen = currentScreen === 'guide';
+  const onDemandTab = view && onGuideScreen && tab !== 'guide' ? tab : null;
+  const notices = (
+    <>
+      {loadError ? (
+        <p role="alert" className="notice-error" data-testid="guide-load-error">
+          {loadError}
+        </p>
+      ) : null}
+      {staleSessionFolder ? (
+        <p role="status" className="notice-error" data-testid="stale-session-notice">
+          <strong>Atenção:</strong> a sessão aberta do terminal ficou na pasta antiga (
+          {staleSessionFolder}). Para trabalhar na pasta do projeto, encerre esta sessão e abra uma
+          nova.{' '}
+          <button
+            type="button"
+            className="btn2"
+            data-testid="stale-session-new-session"
+            onClick={() => void actions.restartSession()}
+          >
+            Encerrar e abrir nova sessão
+          </button>
+        </p>
+      ) : null}
+    </>
+  );
 
   return (
     <div ref={appRef} className={collapsed ? 'app app-closed' : 'app'} data-testid="guide-app">
       <div className="left">
         <header className="top">
-          <div
+          <button
+            type="button"
             className="brand"
             data-testid="guide-brand"
-            role="button"
-            tabIndex={0}
+            aria-label="Vibes DLC, ir para o início"
             onClick={() => setScreen('home')}
-            onKeyDown={(event) => {
-              if (event.key === 'Enter') setScreen('home');
-            }}
           >
             <Logo />
             <span>vibes dlc</span>
-          </div>
+          </button>
+          <span style={{ flex: '1 1 auto' }} />
           <button
             type="button"
-            className="btn2"
+            className={currentScreen === 'customize' ? 'ctab ctab-on' : 'ctab'}
             data-testid="customize-open"
+            aria-current={currentScreen === 'customize' ? 'page' : undefined}
             onClick={() => setScreen('customize')}
           >
             Personalizar
           </button>
         </header>
-        <div className={view ? 'panes with-rail' : 'panes'}>
-          {view && currentScreen === 'guide' ? (
+        <div className={view && onGuideScreen ? 'panes with-rail' : 'panes'}>
+          {view && onGuideScreen ? (
             <Trail phases={view.trail} onSelect={handleTrailSelect} />
           ) : null}
           <main className="main">
-            {view && currentScreen === 'guide' ? (
-              <StageHeader view={view} consulting={consulting} />
+            {view && onGuideScreen ? (
+              <StageHeader view={view} consulting={consulting} tab={tab} onPickTab={setTab} />
             ) : null}
-            <div className="scroll">
-              <div
-                style={{
-                  maxWidth: 760,
-                  margin: '0 auto',
-                  padding: '22px 24px 28px',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: 18,
+            {currentScreen === 'customize' ? (
+              <Customize
+                notices={notices}
+                onChange={setCustom}
+                onClose={() => {
+                  setScreen('guide');
+                  void actions.refresh();
                 }}
-              >
-                {loadError ? (
-                  <p role="alert" className="notice-error" data-testid="guide-load-error">
-                    {loadError}
-                  </p>
-                ) : null}
-                {staleSessionFolder ? (
-                  <p role="status" className="notice-error" data-testid="stale-session-notice">
-                    <strong>Atenção:</strong> a sessão aberta do terminal ficou na pasta antiga (
-                    {staleSessionFolder}). Para trabalhar na pasta do projeto, encerre esta sessão e
-                    abra uma nova.{' '}
-                    <button
-                      type="button"
-                      className="btn2"
-                      data-testid="stale-session-new-session"
-                      onClick={() => void actions.restartSession()}
-                    >
-                      Encerrar e abrir nova sessão
-                    </button>
-                  </p>
-                ) : null}
-                {currentScreen === 'customize' ? (
-                  <Customize
-                    onChange={setCustom}
-                    onClose={() => {
-                      setScreen('guide');
-                      void actions.refresh();
-                    }}
-                  />
-                ) : null}
-                {currentScreen === 'home' ? (
-                  <Home
-                    custom={custom}
-                    onOpen={(id) => {
-                      void actions.openDemand(id);
-                      setScreen('guide');
-                    }}
-                    onNew={() => setScreen('new')}
-                  />
-                ) : null}
-                {currentScreen === 'new' ? (
-                  <NewDemand
-                    custom={custom}
-                    onCancel={() => setScreen('home')}
-                    onCreated={() => setScreen('home')}
-                  />
-                ) : null}
-                {currentScreen === 'tabs' && view ? (
-                  <DemandTabs view={view} onBack={() => setScreen('guide')} />
-                ) : null}
-                {currentScreen === 'guide' && view?.decision.moment === 'not_active' ? (
-                  <Activation intentId={view.intentId} onActivated={() => void actions.refresh()} />
-                ) : null}
-                {currentScreen === 'guide' && view ? (
-                  <button data-testid="open-demand-tabs" onClick={() => setScreen('tabs')}>
-                    Artefatos · Unidades e ciclos · Decisões · Histórico
-                  </button>
-                ) : null}
-                {currentScreen === 'guide' && view && consultStage ? (
-                  <ConsultBody stageSlug={consultStage} artifacts={artifacts} />
-                ) : null}
-                {currentScreen === 'guide' && view && !consultStage ? (
-                  <GuideBody
-                    view={view}
-                    draft={draft}
-                    commandIssue={issue}
-                    failure={failure}
-                    resuming={isResuming}
-                    changedNotice={changedNotice}
-                    artifacts={artifacts}
-                    onDraft={(text) => setDraftEdit({ stage: stageSlug, text })}
-                    onResetDraft={() => setDraftEdit(null)}
-                    onResume={() => setResuming(true)}
-                    onDismissChanged={actions.dismissChanged}
-                  />
-                ) : null}
-                {view || currentScreen !== 'guide' ? null : (
-                  <NoGuideBody state={state as Exclude<GuideState, { kind: 'guide' }>} />
-                )}
+              />
+            ) : null}
+            {currentScreen === 'home' ? (
+              <Home
+                custom={custom}
+                notices={notices}
+                onOpen={(id) => {
+                  setTab('guide');
+                  void actions.openDemand(id);
+                  setScreen('guide');
+                }}
+                onNew={() => setScreen('new')}
+              />
+            ) : null}
+            {currentScreen === 'new' ? (
+              <NewDemand
+                custom={custom}
+                notices={notices}
+                onCancel={() => setScreen('home')}
+                onCreated={() => setScreen('home')}
+              />
+            ) : null}
+            {onGuideScreen ? (
+              <div className="scroll">
+                <div className="scroll-body">
+                  {notices}
+                  {onDemandTab && view ? <DemandTabs view={view} tab={onDemandTab} /> : null}
+                  {!onDemandTab && view?.decision.moment === 'not_active' ? (
+                    <Activation
+                      intentId={view.intentId}
+                      onActivated={() => void actions.refresh()}
+                    />
+                  ) : null}
+                  {!onDemandTab && view && consultStage ? (
+                    <ConsultBody stageSlug={consultStage} artifacts={artifacts} />
+                  ) : null}
+                  {!onDemandTab && view && !consultStage ? (
+                    <GuideBody
+                      view={view}
+                      draft={draft}
+                      commandIssue={issue}
+                      failure={failure}
+                      resuming={isResuming}
+                      changedNotice={changedNotice}
+                      artifacts={artifacts}
+                      onDraft={(text) => setDraftEdit({ stage: stageSlug, text })}
+                      onResetDraft={() => setDraftEdit(null)}
+                      onResume={() => setResuming(true)}
+                      onDismissChanged={actions.dismissChanged}
+                    />
+                  ) : null}
+                  {view ? null : (
+                    <NoGuideBody
+                      state={state as Exclude<GuideState, { kind: 'guide' }>}
+                      onSendCommand={sendSetupCommand}
+                      sendDisabled={session?.status !== 'alive' || Boolean(staleSessionFolder)}
+                    />
+                  )}
+                </div>
               </div>
-            </div>
-            {view && currentScreen === 'guide' ? (
+            ) : null}
+            {onDemandTab ? (
+              <div className="band" data-testid="tabs-band">
+                <span className="band-txt">
+                  Você está consultando. O guia continua de onde parou.
+                </span>
+                <button
+                  type="button"
+                  className="cta"
+                  data-testid="tabs-back"
+                  onClick={() => setTab('guide')}
+                >
+                  Voltar ao guia
+                </button>
+              </div>
+            ) : view && onGuideScreen ? (
               <GuideBand
                 view={view}
                 resuming={isResuming}
@@ -390,7 +474,7 @@ export function GuideApp() {
                 onNextStage={() => void handleNextStage()}
                 onBackToGuide={() => setConsultStage(null)}
               />
-            ) : state.kind === 'repo_failure' ? (
+            ) : state.kind === 'repo_failure' && onGuideScreen ? (
               <div className="band" data-testid="guide-band">
                 <span className="band-txt" data-testid="guide-failure-band-text">
                   <svg
