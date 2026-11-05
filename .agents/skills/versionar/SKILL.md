@@ -1,7 +1,7 @@
 ---
 name: versionar
 description: >-
-  Commita as mudanças pendentes em commits separados por assunto e envia para
+  Commita todas as mudanças pendentes em commits separados por assunto e envia para
   a main do remoto. Não sobe versão, cria tags, publica releases ou abre PRs.
   Use quando o usuário pedir esse fluxo de commits e envio para a main.
   Um pedido apenas de commit não autoriza push.
@@ -13,6 +13,12 @@ Organize as mudanças pendentes por assunto e envie os commits para a `main`.
 Mensagens de commit e explicações em português (Brasil). A autorização para
 este fluxo inclui o push na main, sem nova confirmação. Um pedido limitado
 a commits deve ser respeitado sem push.
+
+Ao invocar esta skill, o usuário autoriza incluir todas as mudanças pendentes:
+adições, alterações, renomeações e exclusões, inclusive mudanças anteriores
+à sessão. Não peça confirmação adicional pelo volume de arquivos ou por
+exclusões já presentes na árvore de trabalho. Não crie novas exclusões para
+limpar o projeto. Respeite um escopo mais restrito quando o usuário o indicar.
 
 Não aumente a versão, crie tags, releases ou pull requests. Não ofereça nem
 execute outras skills ao terminar.
@@ -55,6 +61,8 @@ Inspecione `git status --porcelain --untracked-files=all`, `git diff`,
 
 - Exclua segredos, caches, builds e configurações locais conforme as regras do
   projeto. Não exclua automaticamente arquivos de exemplo versionáveis.
+- Inclua todas as demais mudanças pendentes, inclusive exclusões. As exceções
+  acima significam deixar arquivos fora dos commits, não apagá-los do disco.
 - Cada funcionalidade, correção ou assunto técnico independente vira um commit.
   Documentação específica acompanha a funcionalidade; documentação geral,
   build/CI, refatorações e skills ficam em grupos próprios quando independentes.
