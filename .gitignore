@@ -7,11 +7,6 @@ out/
 dist/
 *.tsbuildinfo
 
-# Testes
-coverage/
-playwright-report/
-test-results/
-
 # Logs
 *.log
 npm-debug.log*

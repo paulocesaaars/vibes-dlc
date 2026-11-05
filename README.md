@@ -78,11 +78,7 @@ pendentes são aplicadas automaticamente, com cópia do banco que já possui mig
 - `npm run lint`: ESLint e conferência de formatação com Prettier.
 - `npm run typecheck`: TypeScript sem emissão de arquivos.
 - `npm run format`: aplica a formatação configurada.
-- `npm test` e `npm run test:coverage`: comandos opcionais do Vitest. A árvore atual não contém
-  `tests/`; a configuração procura `tests/**/*.test.{ts,tsx}` e exige 80% de linhas na cobertura.
-- `npm run verify`: executa `check` e as provas U1–U5. As provas U1–U4 dependem de registros do
-  AI-DLC e do grafo instalados no repositório; U5 também depende de `tests/fixtures/aidlc/`, ausente
-  na árvore atual. Não é uma verificação autossuficiente desta distribuição.
+- `npm run verify`: executa `check`. O projeto não possui testes.
 
 As skills locais de revisão, versionamento e atualização de documentação ficam em `.agents/skills/`
 e `.claude/skills/`. As regras compartilhadas estão em [AGENTS.md](AGENTS.md), e `HARNESS.md` é o

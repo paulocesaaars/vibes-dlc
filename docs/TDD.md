@@ -269,15 +269,11 @@ AI-DLC versionados no Git.
   visualização separada de ciclos nessa aba.
 
 ## Desenvolvimento e validação
-`npm run check` executa lint, conferência de formatação e tipos. Testes são opcionais
-nesse comando. `npm test` e `npm run test:coverage` continuam configurados no Vitest,
-com processos separados, inclusão `tests/**/*.test.{ts,tsx}` e mínimo de 80% das
-linhas na cobertura. A árvore atual não contém a pasta `tests/`.
+`npm run check` executa lint, conferência de formatação e tipos, e `npm run verify`
+executa `check`. O projeto não possui testes.
 
-`npm run verify` executa `check` e as provas U1–U5. U1–U4 usam `proof-repo.ts`, que
-copia o registro ativo de `aidlc/spaces/default/intents/` e o grafo do framework.
-U5 usa `install-list.ts` e também requer `tests/fixtures/aidlc/`. Essas dependências
-não acompanham esta árvore; os scripts não constituem uma suíte autossuficiente.
+Não há integração contínua: `npm run check` é executado à mão, e a `main` não tem
+proteção de branch. A skill `versionar` envia direto para ela.
 
 As skills em `.agents/skills/` e `.claude/skills/` implementam revisão de código,
 versionamento de todas as mudanças pendentes para `main` e atualização dos documentos

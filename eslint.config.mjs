@@ -15,7 +15,6 @@ const eslintConfig = [
       '.vscode/**',
       'public/**',
       'next-env.d.ts',
-      'tests/fixtures/**',
     ],
   },
   ...nextCoreWebVitals,
