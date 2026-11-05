@@ -1,4 +1,4 @@
-/** O que conferir em cada artefato. É dado estático, com os textos de `design/prototipo/Main.dc.html`. */
+/** O que conferir em cada artefato. É dado estático. */
 
 export type ReviewChecklist = { artifactName: string; items: string[] };
 
@@ -30,6 +30,11 @@ const CHECKLISTS: Record<string, string[]> = {
     'Combina com a arquitetura aprovada?',
     'Os erros são tratados, e não escondidos?',
     'Os testes verificam o comportamento de verdade?',
+  ],
+  'code-summary': [
+    'O que foi construído corresponde ao plano aprovado?',
+    'Os desvios do plano estão explicados?',
+    'Se houver tela nova, você a abriu e comparou com o DESIGN.md? Testes e revisões não conferem a aparência.',
   ],
 };
 

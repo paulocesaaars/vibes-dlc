@@ -166,6 +166,9 @@ quantidade vêm do estado da demanda e do grafo instalado no projeto.
 - As aprovações podem virar uma formalidade, sem revisão real, e esvaziar a
   supervisão humana. O passo Revisar reduz o risco, e a revisão dos artefatos e do
   código no Git continua sendo a segunda barreira.
+- Um gate aprovado não garante fidelidade visual: as checagens do AI-DLC não comparam a
+  aparência com o design. O passo Revisar lembra a pessoa de abrir as telas novas e
+  compará-las com o `DESIGN.md`.
 - O terminal dá acesso total ao shell. Se o servidor for exposto fora de
   `127.0.0.1`, qualquer pessoa na rede executa comandos na máquina. O produto
   mostra um alerta nesse caso.
