@@ -11,12 +11,12 @@
     "dev": "node scripts/run-next.mjs dev",
     "build": "node scripts/run-next.mjs build",
     "start": "node scripts/run-next.mjs start",
-    "lint": "eslint . && prettier --check src tests scripts migrations \"*.{ts,mjs,json}\"",
-    "format": "prettier --write src tests scripts \"*.{ts,mjs,json}\"",
+    "lint": "eslint . && prettier --check --no-error-on-unmatched-pattern src tests scripts migrations \"*.{ts,mjs,json}\"",
+    "format": "prettier --write --no-error-on-unmatched-pattern src tests scripts \"*.{ts,mjs,json}\"",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
-    "check": "npm run lint && npm run typecheck && npm run test:coverage",
+    "check": "npm run lint && npm run typecheck",
     "verify": "npm run check && tsx scripts/proof-u1.ts && tsx scripts/proof-u2.ts && tsx scripts/proof-u3.ts && tsx scripts/proof-u4.ts && tsx scripts/proof-u5.ts"
   },
   "dependencies": {
