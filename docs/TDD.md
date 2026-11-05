@@ -254,6 +254,10 @@ AI-DLC versionados no Git.
 - Perguntas abertas são consultadas por `aidlc engine log answers`. Se a ferramenta
   estiver indisponível, o sinal fica indisponível; o painel não interpreta a saída
   da CLI de IA para substituir essa informação.
+- Na Construção por Unidade, o `aidlc-state.md` fica na etapa de design, e o
+  `UNIT_STARTED` de `code-generation` só é gravado depois da construção. Por isso, a
+  posição vem do último evento de Unidade no `audit/`, e `PLAN_APPROVAL_RECORDED` com
+  `Plan Target: unit:<nome>` conta como início da geração de código dessa Unidade.
 - O comando de continuidade oferecido pelo leitor é `/aidlc`. Nova demanda usa
   `/aidlc --scope <nível> "<descrição>"`, ou `/aidlc --new-intent` com trabalho ativo.
   Análise usa `/aidlc compose`, e ativação usa `/aidlc intent switch <intent>`.

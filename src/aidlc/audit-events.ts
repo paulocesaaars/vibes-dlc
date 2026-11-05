@@ -22,12 +22,30 @@ export type AuditSummary = {
   unitEventAfterStart: (stageSlug: string) => UnitPosition | null;
 };
 
-const UNIT_EVENTS = new Set(['UNIT_STARTED', 'UNIT_COMPLETED', 'UNIT_SKIPPED']);
+const PLAN_APPROVAL_EVENT = 'PLAN_APPROVAL_RECORDED';
+/** O `UNIT_STARTED` de `code-generation` só é gravado depois da construção; a aprovação do plano vem antes. */
+const POSITION_EVENTS = new Set([
+  'UNIT_STARTED',
+  'UNIT_COMPLETED',
+  'UNIT_SKIPPED',
+  PLAN_APPROVAL_EVENT,
+]);
 const GATE_EVENTS = new Set(['GATE_APPROVED', 'GATE_REJECTED']);
-const FIELD = /^\*\*(Timestamp|Event|Stage|Stages|Unit)\*\*:[ \t]*(.*)$/;
+const FIELD = /^\*\*(Timestamp|Event|Stage|Stages|Unit|Plan Target)\*\*:[ \t]*(.*)$/;
 const SEPARATOR = /^---\s*$/;
+const UNIT_PLAN_TARGET = /^unit:(.+)$/;
 
-type RawBlock = Partial<Record<'Timestamp' | 'Event' | 'Stage' | 'Stages' | 'Unit', string>>;
+type RawBlock = Partial<
+  Record<'Timestamp' | 'Event' | 'Stage' | 'Stages' | 'Unit' | 'Plan Target', string>
+>;
+
+/** A aprovação do plano não tem `Unit`: a Unidade vem de `Plan Target`, quando o alvo é uma Unidade. */
+function unitOf(block: RawBlock): string | null {
+  const unit = block.Unit?.trim();
+  if (unit) return unit;
+  if (block.Event !== PLAN_APPROVAL_EVENT) return null;
+  return UNIT_PLAN_TARGET.exec(block['Plan Target']?.trim() ?? '')?.[1] ?? null;
+}
 
 function toEvent(block: RawBlock): AuditEvent | null {
   const timestampMs = Date.parse(block.Timestamp ?? '');
@@ -36,7 +54,7 @@ function toEvent(block: RawBlock): AuditEvent | null {
     event: block.Event,
     timestampMs,
     stage: block.Stage?.trim() || null,
-    unit: block.Unit?.trim() || null,
+    unit: unitOf(block),
     stages: (block.Stages ?? '')
       .split(',')
       .map((slug) => slug.trim())
@@ -92,7 +110,7 @@ export function summarizeEvents(events: AuditEvent[]): AuditSummary {
     if (entry.event === 'STAGE_STARTED' && entry.stage) {
       attemptStart.set(entry.stage, sequence);
       gates.delete(entry.stage);
-    } else if (UNIT_EVENTS.has(entry.event) && entry.stage && entry.unit) {
+    } else if (POSITION_EVENTS.has(entry.event) && entry.stage && entry.unit) {
       lastUnit = { stage: entry.stage, unit: entry.unit, sequence };
     } else if (GATE_EVENTS.has(entry.event) && !entry.unit) {
       // Um gate com `Unit` é checkpoint de Unidade e não aprova a etapa inteira.
@@ -139,7 +157,7 @@ export async function listAuditFiles(auditDir: string): Promise<AuditFiles> {
   };
 }
 
-const KEPT_EVENTS = new Set(['STAGE_STARTED', ...UNIT_EVENTS, ...GATE_EVENTS]);
+const KEPT_EVENTS = new Set(['STAGE_STARTED', ...POSITION_EVENTS, ...GATE_EVENTS]);
 
 async function readRelevantEvents(file: string): Promise<AuditEvent[]> {
   const kept: AuditEvent[] = [];
