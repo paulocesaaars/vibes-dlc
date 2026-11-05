@@ -8,7 +8,7 @@ manter), gargalos de governança e compliance e pouco aproveitamento da
 autonomia da IA. Falta um fluxo em que a máquina lidere a geração estruturada
 de artefatos, com supervisão humana contínua e adaptada ao tamanho do desafio.
 
-O AI-DLC resolve parte disso, mas tem 33 etapas e vários níveis de fluxo. Quem
+O AI-DLC resolve parte disso, mas tem várias etapas e níveis de fluxo. Quem
 começa não sabe o que cada etapa faz, o que precisa decidir nem quando é a sua
 vez de agir.
 
@@ -25,9 +25,8 @@ integrado, onde o usuário chama a CLI de IA de sua preferência (Claude Code,
 Codex, Devin ou outra). A cada etapa do ciclo, o guia envia ao terminal os
 comandos do AI-DLC correspondentes e mostra o andamento e os artefatos gerados.
 
-O [protótipo clicável](https://claude.ai/artifact/LHuCarHCYtEsTMo6CeE1PN) é a
-referência visual e de comportamento deste documento. Seu terminal é simulado e
-usa o Claude Code como exemplo.
+A aparência implementada está descrita em [DESIGN.md](DESIGN.md). O terminal
+integrado é real; as funções disponíveis são as descritas neste documento.
 
 ## Para quem
 Pessoas de engenharia de software, Tech Leads, Arquitetos e Product Owners que
@@ -40,7 +39,7 @@ rastreabilidade, sem perder o controle da qualidade da arquitetura.
     Construção e Operação;
   - condução passo a passo de cada etapa, com trilha, instruções e explicação do
     que a etapa faz;
-  - quebra de requisitos em Units e Bolts, exibidos como Unidades e Ciclos;
+  - consulta das Unidades e de seu estado a partir dos registros do AI-DLC;
   - revisão guiada dos artefatos gerados (TDDs, Domain Designs e testes);
   - terminal integrado, com sessão persistente, onde o usuário executa a CLI de
     IA que escolher;
@@ -56,9 +55,8 @@ rastreabilidade, sem perder o controle da qualidade da arquitetura.
     chaves de IA;
   - autenticação, contas e papéis: o app roda na máquina do usuário, e os
     papéis do ciclo já são representados pelos agents do AI-DLC;
-  - deploy e qualquer ação sobre infraestrutura ou produção: o produto é uma
-    ferramenta de execução local, e a fase Operação gera apenas arquivos
-    (IaC, pipelines e runbooks) no repositório;
+  - automação própria de deploy ou acesso a produção: o produto oferece um shell
+    local, e os efeitos dos comandos da CLI dependem das permissões dessa CLI;
   - leitura de logs e métricas de produção;
   - integração com GitHub ou outros hosts de código: branches e pull requests
     ficam por conta da CLI de IA e do próprio usuário;
@@ -68,7 +66,7 @@ rastreabilidade, sem perder o controle da qualidade da arquitetura.
   - gamificação, como pontos, sequências ou vidas: aprovar é uma decisão, não um
     jogo;
   - modo direto, sem os cinco passos do guia;
-  - tratamento específico das etapas de implantação, previsto para a v2.
+  - tratamento específico das etapas de implantação.
 
 ## Requisitos
 1. O produto deve permitir registrar uma demanda e acompanhar seu estado ao longo
@@ -82,7 +80,8 @@ rastreabilidade, sem perder o controle da qualidade da arquitetura.
    usuário vê o comando e confirma antes do envio, e pode editá-lo. Pode executar
    na hora ou só colar o comando, para pressionar Enter no terminal. Os comandos
    prontos são para o Claude Code. Com outra CLI, o guia mostra o comando como
-   referência e orienta a pessoa a digitá-lo, sem envio.
+   referência e permite copiá-lo, sem envio. As sugestões de comando têm um ícone
+   de copiar no canto direito; o histórico de comandos enviados não tem essa ação.
 4. O produto deve ler o estado e os artefatos que o AI-DLC grava no repositório e
    exibi-los para revisão (plano, Units, Bolts, TDDs, Domain Designs e testes).
 5. O produto deve sugerir o nível do fluxo por regras locais, mostrando o motivo.
@@ -99,7 +98,8 @@ rastreabilidade, sem perder o controle da qualidade da arquitetura.
 9. A instalação deve exigir apenas Node.js, `npm install` e a execução do Next.
    Não pode depender de banco, fila ou serviço externo. No Windows, exige também o
    Git Bash. O produto é instalado copiando os arquivos para uma subpasta própria do
-   repositório, sem alterar o `package.json` existente.
+   repositório, sem alterar o `package.json` existente. Sem AI-DLC, a tela oferece
+   comandos de preparação que podem ser copiados ou colados sem Enter no terminal.
 10. O produto deve aceitar a execução de uma etapa no terminal sem o painel
     aberto: ao reabrir, deve reconciliar o estado a partir dos arquivos do
     AI-DLC e avisar o usuário do que mudou.
@@ -118,8 +118,8 @@ rastreabilidade, sem perder o controle da qualidade da arquitetura.
     momento do guia, a imagem ou o vídeo e as frases, e troca as cores da interface.
     Cada item pode voltar ao original, e sair com Cancelar desfaz o que foi mudado
     naquela visita.
-16. Os textos do guia devem ser genéricos quanto à IA ("a sua IA") e não citar uma
-    ferramenta específica.
+16. Os textos do fluxo usam "a sua IA". A preparação do repositório cita Claude Code
+    e apresenta os comandos para configurar seu harness e abrir essa CLI.
 17. Toda a interface deve estar em português (Brasil). Ficam no original apenas os
     comandos do AI-DLC, os caminhos de arquivo e o que a CLI de IA imprime.
 18. Só a demanda ativa no AI-DLC recebe comandos. As outras podem ser consultadas, e o
@@ -128,23 +128,15 @@ rastreabilidade, sem perder o controle da qualidade da arquitetura.
     o guia avisa que a IA pode ter parado e orienta a retomar.
 
 ## Níveis do fluxo
-Os níveis são os escopos do AI-DLC. A interface mostra o nome em português, e o
-comando usa o identificador original. A quantidade de etapas é a máxima, porque o
-AI-DLC pode pular as etapas condicionais.
+Os 11 níveis selecionáveis são Expressa (`express`), Correção de erro (`bugfix`),
+Correção de segurança (`security-patch`), Refatoração (`refactor`), Prova de conceito
+(`poc`), Infraestrutura (`infra`), Produto mínimo (`mvp`), Clássica (`classic`),
+Oficina (`workshop`), Funcionalidade (`feature`) e Corporativa (`enterprise`).
 
-| Nível | Identificador | Etapas | Profundidade |
-|-------|---------------|--------|--------------|
-| Expressa | `express` | 10 | Mínima |
-| Correção de erro | `bugfix` | 9 | Mínima |
-| Correção de segurança | `security-patch` | 10 | Mínima |
-| Refatoração | `refactor` | 10 | Mínima |
-| Prova de conceito | `poc` | 8 | Mínima |
-| Infraestrutura | `infra` | 13 | Padrão |
-| Produto mínimo | `mvp` | 23 | Padrão |
-| Clássica | `classic` | 18 | Padrão |
-| Oficina | `workshop` | 26 | Padrão |
-| Funcionalidade | `feature` | 33 | Padrão |
-| Corporativa | `enterprise` | 33 | Completa |
+A sugestão usa palavras-chave da descrição e mostra seu motivo. Na ausência de
+correspondência, sugere Funcionalidade. O seletor apresenta inicialmente o nível
+sugerido e o escolhido; Ver todos os níveis expande as opções. As etapas e sua
+quantidade vêm do estado da demanda e do grafo instalado no projeto.
 
 ## Regras de negócio
 - A aprovação de cada etapa é dada no gate do AI-DLC. O guia só oferece o
@@ -164,15 +156,9 @@ AI-DLC pode pular as etapas condicionais.
 - O logo é a identidade do Vibes DLC: o desenho não muda, e só a cor do logo e do
   título pode ser escolhida, separada da cor principal. O favicon mantém sempre a
   cor original.
-- O produto só se conecta à rede local (`127.0.0.1`). Quem acessa o painel tem o
-  mesmo poder do usuário no terminal.
-
-## Como saber que funcionou
-- Quem desenvolve leva uma demanda real do registro até o código gerado, usando só
-  o guia e o terminal integrado.
-- Uma pessoa que nunca usou o AI-DLC conclui uma etapa sem ajuda, sem consultar a
-  documentação do framework.
-- Um repositório AI-DLC passa a rodar o painel com `npm install` e um comando.
+- O painel escuta em `127.0.0.1` por padrão; o endereço pode ser configurado.
+  Quem acessa o painel tem o mesmo poder do usuário no terminal. O bloqueio de
+  `fetch` externo no processo do app não restringe a rede usada pela CLI de IA.
 
 ## Riscos
 - A IA pode gerar código incoerente com a arquitetura existente, sobretudo em
@@ -185,11 +171,11 @@ AI-DLC pode pular as etapas condicionais.
   mostra um alerta nesse caso.
 - A saída das CLIs de IA muda entre versões e entre ferramentas. O guia não
   deve depender de interpretar essa saída; deve se apoiar nos arquivos do AI-DLC.
-  Isso limita o que ele sabe sobre o terminal (veja "Pontos a validar" no TDD).
+  Isso limita o que ele sabe sobre o terminal (veja "Limites da integração" no TDD).
 - O pacote do terminal (`node-pty`) tem parte nativa e pode exigir compilação em
   alguns sistemas durante o `npm install`.
 - Quem já conhece o fluxo pode achar repetitivo passar pelos cinco passos. Isso é
-  aceito, porque não haverá modo direto.
+  aceito; a interface atual não oferece modo direto.
 - Cores personalizadas podem prejudicar a leitura. O produto avisa quando o
   contraste com o fundo fica baixo.
 
@@ -206,12 +192,8 @@ AI-DLC pode pular as etapas condicionais.
 - O nome do produto é Vibes DLC.
 
 ## Decisões tomadas
-- **Artes padrão:** a versão distribuída traz todas as artes do protótipo, com a Nix e
-  a família do autor, que autorizou esse uso.
-- **Modo direto:** não haverá. Todos passam pelos cinco passos de cada etapa.
-- **Etapas de implantação:** o tratamento específico de etapas como
-  `deployment-execution` fica para a v2. Na v1, o escopo continua excluindo deploy.
-- **Fonte e formatos:** vale o que está no protótipo: as cores da interface do projeto
-  Nix, com a fonte Nunito, bordas de 2px e cantos de 12px.
-- **Botão principal:** vale o que está no protótipo: texto branco sobre `#FF385C`. O
-  contraste de cerca de 3,3:1 fica abaixo do mínimo de 4,5:1 e é um risco aceito.
+- **Artes padrão:** a distribuição inclui as ilustrações WebP em `public/guia/`.
+- **Modo direto:** a interface oferece os cinco passos de cada etapa.
+- **Etapas de implantação:** não têm tratamento específico na interface.
+- **Identidade visual:** cores, fontes e formatos estão descritos em
+  [DESIGN.md](DESIGN.md), incluindo o contraste do botão principal padrão.
