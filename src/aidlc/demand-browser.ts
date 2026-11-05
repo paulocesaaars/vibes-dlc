@@ -148,7 +148,14 @@ function parseEvents(text: string): Event[] {
         stage: field('Stage') || null,
         unit: field('Unit') || null,
         scope: field('Gate Scope') || null,
-        details: field('Details') || field('Question') || field('Answer') || '',
+        details:
+          field('Details') ||
+          field('Question') ||
+          field('Answer') ||
+          field('Decision') ||
+          field('User Input') ||
+          field('Verdict') ||
+          '',
       },
     ];
   });
@@ -255,6 +262,6 @@ export async function readDecisions(repoRoot: string, intentId: string): Promise
       kind: kinds[event.event]!,
       stage: event.stage,
       at: event.at,
-      text: event.details || event.event,
+      text: event.details,
     }));
 }
