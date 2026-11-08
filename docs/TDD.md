@@ -25,6 +25,28 @@ O diretório do produto é independente do projeto e do armazenamento pessoal.
 O navegador consulta o retrato a cada dois segundos, sem sobrepor suas próprias consultas.
 Conexões de terminal continuam usando SSE. O leitor não executa comandos auxiliares do AI-DLC.
 
+## Navegação e estado da interface
+
+`web/components/guide-app.tsx` mantém a navegação entre início, acompanhamento, nova demanda
+e personalização. O início é exibido ao abrir o painel com um projeto selecionado. A listagem
+recebe de `workspace-service.ts` a etapa, a condição de leitura e o progresso de cada demanda.
+O cálculo usa `core/trail.ts`: conta etapas aprovadas entre as planejadas para execução,
+excluindo as puladas. A condição `stale` acompanha o progresso e é indicada na lista.
+
+`new-demand-wizard.tsx` apresenta as três etapas do assistente e recebe o `DemandDraft`
+controlado pelo componente principal: etapa, descrição, nível e expansão da lista de níveis.
+Isso preserva o preenchimento ao desmontar o assistente durante a visita à personalização.
+O rascunho fica somente na memória do navegador; cancelar a demanda ou observar a troca para
+outro projeto limpa esse estado. Não é gravado no banco nem nos arquivos do projeto.
+`screen-frame.tsx` separa o conteúdo rolável da faixa inferior de ações.
+
+`triage/suggest-level.ts` concentra a sugestão por regras locais e a montagem dos comandos.
+A descrição é normalizada para comparação, e a primeira regra correspondente define a sugestão;
+sem correspondência, usa `feature`. Pedir análise prepara `/aidlc compose`, sem consultar um
+modelo pelo painel. Criar usa `/aidlc --scope` e inclui `--new-intent` quando há demanda ativa.
+O prefixo é adaptado à IA selecionada por `core/commands.ts` antes de exibir a prévia.
+Alterar descrição ou nível e voltar de etapa invalidam a prévia existente.
+
 ## Contrato de arquivos
 
 A raiz selecionada contém `aidlc/`. Os cursores são `aidlc/active-space` (padrão `default`)

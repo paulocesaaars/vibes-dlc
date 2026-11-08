@@ -19,7 +19,7 @@ de compilação C++, conforme o sistema.
 1. Mantenha este repositório em uma pasta própria, separada dos projetos acompanhados.
 2. Execute `npm install` e `npm run dev`.
 3. Abra <http://127.0.0.1:3000>.
-4. Informe o caminho absoluto de um projeto local com AI-DLC.
+4. Escolha a pasta de um projeto local com AI-DLC ou informe seu caminho absoluto.
 
 Não copie o produto para cada projeto. O Vibes não cria `.vibes/` nem arquivos próprios nos
 repositórios acompanhados. Não há importação de instalações antigas.
@@ -34,19 +34,29 @@ Para produção, execute `npm run build` e `npm start`.
 - Escolha **Claude Code**, **Devin** ou **GitHub Copilot** no seletor **IA**, ao lado do projeto.
   A escolha é lembrada localmente por projeto.
 - Abra uma sessão no terminal e inicie manualmente a IA escolhida.
-- Consulte demandas, trilha, artefatos, unidades e decisões registradas no AI-DLC.
+- Na tela inicial, abra uma demanda para consultar sua trilha, artefatos, unidades e decisões.
+  A lista mostra nível, etapa e progresso; dados antigos recebem o aviso **Dados desatualizados**.
+  Clique na marca Vibes DLC para voltar ao início.
+- Use **Nova demanda** e siga as três etapas: descreva o trabalho, escolha o nível e confira
+  o comando. **Ver todos os níveis** permite trocar a sugestão; **Pedir análise à sua IA**
+  prepara um comando para conferir e enviar ao terminal. A sugestão inicial usa regras locais.
 - Para criar, analisar, continuar ou ativar uma demanda, confira o comando antes de confirmar.
   É possível executá-lo com Enter ou apenas colar.
 - Para Devin, o comando começa com `aidlc`; para Claude Code e Copilot, com `/aidlc`.
   Trocar a seleção ajusta os próximos comandos e não substitui a ferramenta aberta.
 - Aprove e responda no terminal, nos gates do próprio AI-DLC.
 - Em **Personalizar**, altere cores, frases e mídias globais. Cancelar desfaz as mudanças da visita.
+  A visita preserva o preenchimento e a etapa do assistente de nova demanda.
 - Trocar de projeto com terminal vivo pede confirmação e encerra essa sessão.
   Todas as abas do mesmo servidor passam a acompanhar o projeto escolhido.
 
 O painel consulta os arquivos a cada dois segundos enquanto estiver aberto. Enviar um comando
 não comprova sua execução. O painel não interpreta a saída da IA nem afirma que ela está
 trabalhando a partir da ausência de mudanças.
+
+No assistente, **Voltar** preserva o preenchimento. **Cancelar** ou **Cancelar demanda** limpa
+o rascunho e retorna ao início. O rascunho não é salvo após recarregar a página.
+**Atualizar arquivos** antecipa uma nova leitura do projeto; não altera nem salva seus arquivos.
 
 Recarregar a página preserva a sessão enquanto o servidor estiver vivo. F6 alterna o foco entre
 painel e terminal. O projeto deve ser selecionado novamente após reiniciar o servidor.

@@ -25,6 +25,10 @@ autentica AI-DLC, harnesses ou ferramentas de IA.
    Abrir a ferramenta de IA é uma ação manual.
 5. Criar, analisar, continuar e ativar demandas oferece prévia e confirmação explícita.
    Há execução com Enter e colagem sem Enter. O envio não avança o estado do painel.
+   Nova demanda conduz descrição, sugestão e escolha do nível e conferência do comando em
+   três etapas. A sugestão usa regras locais sobre a descrição, com Funcionalidade como
+   alternativa padrão. A pessoa pode consultar todos os níveis ou preparar um comando de
+   análise para sua IA no terminal antes de escolher.
 6. Comandos de Claude Code e Copilot começam com `/aidlc`; de Devin, com `aidlc`.
    Essa regra segue os testes informados pelo usuário e pressupõe a integração já funcionando.
 7. Demandas, etapas, unidades, artefatos, decisões e aprovações vêm exclusivamente dos registros
@@ -37,10 +41,15 @@ autentica AI-DLC, harnesses ou ferramentas de IA.
     que 2 MB são identificados para abertura no editor.
 11. Somente a demanda ativa recebe continuidade. Outras demandas podem ser consultadas e
     ativadas por comando confirmado.
+    A tela inicial lista as demandas com título, nível, etapa e progresso registrado.
+    Abrir uma demanda leva ao acompanhamento; a marca retorna ao início.
 12. Perguntas e respostas continuam no terminal e podem aparecer como registros nas decisões.
     Não há contador de perguntas pendentes obtido por execução de comandos.
 13. Preferências visuais são globais por usuário: cores, frases e mídias dos estados disponíveis.
     Cancelar reverte a visita atual; Concluir mantém suas alterações.
+    Visitar Personalizar preserva a descrição, o nível e a etapa da nova demanda em andamento.
+    Voltar no assistente também preserva o preenchimento; cancelar a demanda limpa o rascunho
+    e a prévia e retorna ao início. O rascunho não é persistido após recarregar a página.
 14. Somente preferências são persistidas no perfil local do usuário. Não há dados próprios
     gravados nos projetos nem banco para compartilhar pelo Git.
 15. Uma troca de projeto valida o destino antes de alterar o contexto. Com terminal vivo,
@@ -49,6 +58,8 @@ autentica AI-DLC, harnesses ou ferramentas de IA.
     são rejeitados. A troca de IA invalida prévias anteriores.
 17. O painel informa falhas de leitura e dados desatualizados e suspende envio dependente de
     estado inválido. Ausência de mudança não prova atividade nem inatividade da IA.
+    Na lista inicial, progresso proveniente de leitura desatualizada recebe aviso e não ganha
+    o rótulo de etapas concluídas enquanto permanecer nessa condição.
 18. A interface está em português do Brasil; comandos, caminhos e saída da CLI preservam o original.
 19. O servidor escuta localmente por padrão. Sua exposição à rede é configurável, com alerta,
     e dá acesso ao shell da máquina a quem alcançar o painel.
