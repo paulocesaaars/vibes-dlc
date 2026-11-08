@@ -5,13 +5,9 @@ import { AI_OPTIONS, formatAiCommand } from '@/core/commands';
 import { stageName } from '@/guide/stage-content';
 import { findMoment } from '@/guide/customizable-moments';
 import { applyTokens } from '@/customization/tokens';
-import { LEVELS } from '@/guide/levels';
-import {
-  buildDemandCommand,
-  buildAnalysisCommand,
-  suggestLevel,
-  type Level,
-} from '@/triage/suggest-level';
+import { levelLabel } from '@/guide/levels';
+import { NewDemandWizard, type DemandDraft } from './new-demand-wizard';
+import { buildDemandCommand, buildAnalysisCommand } from '@/triage/suggest-level';
 import type { WorkspaceView } from '@/web/workspace-service';
 import { useCustomization } from '@/web/client/use-customization';
 import { applyColors } from '@/web/client/apply-colors';
@@ -70,8 +66,13 @@ export function GuideApp() {
   const [collapsed, setCollapsed] = useState(false);
   const [tab, setTab] = useState<'artifacts' | 'units' | 'decisions'>('artifacts');
   const [newDemand, setNewDemand] = useState(false);
-  const [description, setDescription] = useState('');
-  const [level, setLevel] = useState<Level>('feature');
+  const [home, setHome] = useState(true);
+  const [draft, setDraft] = useState<DemandDraft>({
+    step: 1,
+    description: '',
+    level: 'feature',
+    showAll: false,
+  });
   const [preview, setPreview] = useState<Preview | null>(null);
   const [feedback, setFeedback] = useState<string | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
@@ -111,7 +112,8 @@ export function GuideApp() {
             setQuery({});
             setFeedback(null);
             setNewDemand(false);
-            setDescription('');
+            setHome(true);
+            setDraft({ step: 1, description: '', level: 'feature', showAll: false });
           }
         }
         currentContext.current = { id: next.contextId, path: next.project?.path ?? null };
@@ -174,6 +176,9 @@ export function GuideApp() {
           confirmedSession: confirmed ? (view.session?.sessionId ?? null) : null,
         });
         setQuery({});
+        setHome(true);
+        setNewDemand(false);
+        setPreview(null);
         setProjectForm(false);
         setDirectoryOpen(false);
         setConfirmSwitch(null);
@@ -229,7 +234,7 @@ export function GuideApp() {
     /[\u0000-\u001f\u007f]/.test(activePreview.text);
   const uiUnavailable = busy || Boolean(error) || Boolean(view?.error);
   let momentKey = 'home';
-  if (detail) {
+  if (detail && !home && !newDemand) {
     momentKey =
       detail.mark === 'awaiting_approval'
         ? 'approve'
@@ -276,6 +281,60 @@ export function GuideApp() {
     </>
   );
 
+  const commandPreview = activePreview ? (
+    <section className="card card-pad stack-14" aria-label="Confirmar envio">
+      <h2 className="section-title">Confira o comando</h2>
+      <p>
+        Abra {project ? AI_OPTIONS[project.ai] : 'a IA'} no terminal antes de enviar. A seleção não
+        troca a ferramenta aberta.
+      </p>
+      <CommandActions text={activePreview.text}>
+        <label htmlFor="command-preview" className="visually-hidden">
+          Comando a enviar
+        </label>
+        <textarea
+          id="command-preview"
+          className="field mono"
+          rows={3}
+          value={activePreview.text}
+          maxLength={8000}
+          onChange={(event) =>
+            setPreview({
+              ...activePreview,
+              commandId: crypto.randomUUID(),
+              text: event.target.value,
+            })
+          }
+        />
+      </CommandActions>
+      {invalidCommand ? (
+        <p role="alert">
+          Use uma única linha, sem caracteres de controle e com até 8000 caracteres.
+        </p>
+      ) : null}
+      <div className="workspace-actions">
+        <button
+          className="cta"
+          disabled={uiUnavailable || invalidCommand || view?.session?.status !== 'alive'}
+          onClick={() => send('execute')}
+        >
+          Confirmar e executar
+        </button>
+        <button
+          className="btn2"
+          disabled={uiUnavailable || invalidCommand || view?.session?.status !== 'alive'}
+          onClick={() => send('paste')}
+        >
+          Colar sem executar
+        </button>
+        <button className="btn2" disabled={busy} onClick={() => setPreview(null)}>
+          Cancelar
+        </button>
+      </div>
+      {view?.session?.status !== 'alive' ? <p>Abra uma sessão no terminal para enviar.</p> : null}
+    </section>
+  ) : null;
+
   return (
     <div ref={rootRef} className={collapsed ? 'app app-term-closed' : 'app'}>
       <div className="left">
@@ -288,6 +347,8 @@ export function GuideApp() {
               setQuery({});
               setNewDemand(false);
               setCustomizing(false);
+              setHome(true);
+              setPreview(null);
             }}
           >
             <Logo />
@@ -433,8 +494,10 @@ export function GuideApp() {
             </div>
           </section>
         ) : null}
-        <div className={detail && !customizing ? 'panes with-rail' : 'panes'}>
-          {detail && !customizing ? (
+        <div
+          className={detail && !customizing && !home && !newDemand ? 'panes with-rail' : 'panes'}
+        >
+          {detail && !customizing && !home && !newDemand ? (
             <Trail
               phases={detail.trail}
               onSelect={(stage) => {
@@ -450,16 +513,42 @@ export function GuideApp() {
                 onChange={setCustom}
                 onClose={() => setCustomizing(false)}
               />
+            ) : newDemand && project ? (
+              <NewDemandWizard
+                key={project.path}
+                draft={draft}
+                onDraftChange={setDraft}
+                notices={notices}
+                preview={commandPreview}
+                disabled={uiUnavailable}
+                onCancel={() => {
+                  setNewDemand(false);
+                  setDraft({ step: 1, description: '', level: 'feature', showAll: false });
+                  setHome(true);
+                  setPreview(null);
+                }}
+                onChange={() => setPreview(null)}
+                onPrepare={(description, level) =>
+                  prepare(
+                    buildDemandCommand(description, level, Boolean(view?.activeIntentId)),
+                    'new',
+                    null,
+                  )
+                }
+                onAnalyze={(description) =>
+                  prepare(buildAnalysisCommand(description), 'analysis', null)
+                }
+              />
             ) : (
               <div className="scroll">
                 <div className="scroll-body">
                   {notices}
                   {!view ? <p role="status">Abrindo o painel…</p> : null}
-                  {project ? (
+                  {project && !newDemand ? (
                     <>
                       <Say
                         art={art}
-                        eyebrow={detail ? detail.title : 'AI-DLC'}
+                        eyebrow={home ? 'Bem-vindo' : (detail?.title ?? 'AI-DLC')}
                         title={applyTokens(
                           custom?.says[momentKey]?.title || moment.defaultTitle,
                           moment.tokens,
@@ -476,7 +565,7 @@ export function GuideApp() {
                           className="btn2"
                           disabled={busy}
                           onClick={() => {
-                            setNewDemand((v) => !v);
+                            setNewDemand(true);
                             setPreview(null);
                           }}
                         >
@@ -486,6 +575,7 @@ export function GuideApp() {
                           className="btn2"
                           onClick={() => {
                             setQuery({});
+                            setHome(false);
                             setNewDemand(false);
                           }}
                         >
@@ -495,150 +585,62 @@ export function GuideApp() {
                           Atualizar arquivos
                         </button>
                       </div>
-                      <section className="stack-8" aria-label="Demandas">
-                        {view?.demands.map((d) => (
-                          <button
-                            type="button"
-                            className="row"
-                            key={d.intentId}
-                            onClick={() => {
-                              setQuery({ intent: d.intentId });
-                              setNewDemand(false);
-                              setPreview(null);
-                            }}
-                          >
-                            <strong>{d.title}</strong>
-                            <span className="row-meta">
-                              {d.scope} · {d.isActive ? 'Ativa' : 'Consulta'}
-                              {d.readable ? '' : ' · Registro indisponível'}
-                            </span>
-                          </button>
-                        ))}
-                        {view && !view.demands.length && !view.error ? (
-                          <p>Nenhuma demanda registrada neste espaço do AI-DLC.</p>
-                        ) : null}
-                      </section>
+                      {home ? (
+                        <section className="stack-8" aria-label="Demandas">
+                          {view?.demands.map((d) => (
+                            <button
+                              type="button"
+                              className="row"
+                              key={d.intentId}
+                              onClick={() => {
+                                setQuery({ intent: d.intentId });
+                                setHome(false);
+                                setNewDemand(false);
+                                setPreview(null);
+                              }}
+                            >
+                              <span className="row-main">
+                                <strong className="row-title">{d.title}</strong>
+                                <span className="row-meta">
+                                  {levelLabel(d.scope)} ·{' '}
+                                  {d.currentStage
+                                    ? `Agora: ${stageName(d.currentStage)}`
+                                    : 'Sem etapa em andamento'}
+                                  {d.readable ? '' : ' · Registro indisponível'}
+                                  {d.stale
+                                    ? ' · Dados desatualizados; aguardando nova leitura'
+                                    : ''}
+                                </span>
+                                {d.progress ? (
+                                  <progress
+                                    aria-label={`Progresso de ${d.title}`}
+                                    value={d.progress.done}
+                                    max={Math.max(1, d.progress.total)}
+                                  />
+                                ) : null}
+                              </span>
+                              <span className="tag">
+                                {d.stale
+                                  ? 'Dados desatualizados'
+                                  : d.progress &&
+                                      d.progress.total > 0 &&
+                                      d.progress.done === d.progress.total
+                                    ? 'Etapas concluídas'
+                                    : d.isActive
+                                      ? 'Continuar'
+                                      : 'Abrir demanda'}
+                              </span>
+                            </button>
+                          ))}
+                          {view && !view.demands.length && !view.error ? (
+                            <p>Nenhuma demanda registrada neste espaço do AI-DLC.</p>
+                          ) : null}
+                        </section>
+                      ) : null}
                     </>
                   ) : null}
-                  {newDemand && project ? (
-                    <section className="card card-pad stack-14" aria-label="Nova demanda">
-                      <h2 className="section-title">Nova demanda</h2>
-                      <label htmlFor="demand-description">Descreva o trabalho</label>
-                      <textarea
-                        id="demand-description"
-                        className="field"
-                        rows={3}
-                        maxLength={4000}
-                        value={description}
-                        onChange={(event) => {
-                          setDescription(event.target.value);
-                          setLevel(suggestLevel(event.target.value).scope);
-                          setPreview(null);
-                        }}
-                      />
-                      <p className="row-meta">{suggestLevel(description).reason}</p>
-                      <label htmlFor="demand-level">Nível do fluxo</label>
-                      <select
-                        id="demand-level"
-                        className="field"
-                        value={level}
-                        onChange={(event) => {
-                          setLevel(event.target.value as Level);
-                          setPreview(null);
-                        }}
-                      >
-                        {LEVELS.map((l) => (
-                          <option key={l.name} value={l.name}>
-                            {l.label}
-                          </option>
-                        ))}
-                      </select>
-                      <div className="workspace-actions">
-                        <button
-                          className="cta"
-                          disabled={uiUnavailable || !description.trim()}
-                          onClick={() =>
-                            prepare(
-                              buildDemandCommand(description, level, Boolean(view?.activeIntentId)),
-                              'new',
-                              null,
-                            )
-                          }
-                        >
-                          Conferir comando
-                        </button>
-                        <button
-                          className="btn2"
-                          disabled={uiUnavailable || !description.trim()}
-                          onClick={() =>
-                            prepare(buildAnalysisCommand(description), 'analysis', null)
-                          }
-                        >
-                          Pedir análise à IA
-                        </button>
-                      </div>
-                    </section>
-                  ) : null}
-                  {activePreview ? (
-                    <section className="card card-pad stack-14" aria-label="Confirmar envio">
-                      <h2 className="section-title">Confira o comando</h2>
-                      <p>
-                        Abra {project ? AI_OPTIONS[project.ai] : 'a IA'} no terminal antes de
-                        enviar. A seleção não troca a ferramenta aberta.
-                      </p>
-                      <CommandActions text={activePreview.text}>
-                        <label htmlFor="command-preview" className="visually-hidden">
-                          Comando a enviar
-                        </label>
-                        <textarea
-                          id="command-preview"
-                          className="field mono"
-                          rows={3}
-                          value={activePreview.text}
-                          maxLength={8000}
-                          onChange={(event) =>
-                            setPreview({
-                              ...activePreview,
-                              commandId: crypto.randomUUID(),
-                              text: event.target.value,
-                            })
-                          }
-                        />
-                      </CommandActions>
-                      {invalidCommand ? (
-                        <p role="alert">
-                          Use uma única linha, sem caracteres de controle e com até 8000 caracteres.
-                        </p>
-                      ) : null}
-                      <div className="workspace-actions">
-                        <button
-                          className="cta"
-                          disabled={
-                            uiUnavailable || invalidCommand || view?.session?.status !== 'alive'
-                          }
-                          onClick={() => send('execute')}
-                        >
-                          Confirmar e executar
-                        </button>
-                        <button
-                          className="btn2"
-                          disabled={
-                            uiUnavailable || invalidCommand || view?.session?.status !== 'alive'
-                          }
-                          onClick={() => send('paste')}
-                        >
-                          Colar sem executar
-                        </button>
-                        <button className="btn2" disabled={busy} onClick={() => setPreview(null)}>
-                          Cancelar
-                        </button>
-                      </div>
-                      {view?.session?.status !== 'alive' ? (
-                        <p>Abra uma sessão no terminal para enviar.</p>
-                      ) : null}
-                    </section>
-                  ) : null}
-                  {detail && !newDemand ? (
+                  {commandPreview}
+                  {detail && !newDemand && !home ? (
                     <section className="stack-14">
                       <div className="card card-pad stack-8">
                         <h2 className="section-title">
@@ -785,6 +787,21 @@ export function GuideApp() {
                 </div>
               </div>
             )}
+            {project && home && !newDemand && !customizing ? (
+              <div className="band">
+                <span className="band-txt">Quer começar outro trabalho?</span>
+                <button
+                  className="cta"
+                  disabled={busy}
+                  onClick={() => {
+                    setNewDemand(true);
+                    setPreview(null);
+                  }}
+                >
+                  Nova demanda
+                </button>
+              </div>
+            ) : null}
           </main>
         </div>
       </div>

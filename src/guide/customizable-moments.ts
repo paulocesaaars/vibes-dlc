@@ -11,9 +11,9 @@ export const CUSTOMIZABLE_MOMENTS: readonly CustomizableMoment[] = [
   {
     momentKey: 'home',
     name: 'Início',
-    defaultTitle: 'Seu projeto, do ponto registrado',
+    defaultTitle: 'Olá! Eu te guio em cada etapa',
     defaultText:
-      'Escolha uma demanda para acompanhar os arquivos do AI-DLC. As interações com a sua IA acontecem no terminal.',
+      'Você decide e aprova. A sua IA faz o trabalho no terminal ao lado. Escolha por onde continuar.',
     tokens: [],
     defaultArtSrc: '/guia/boasvindas.webp',
     textEditable: true,

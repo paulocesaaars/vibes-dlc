@@ -99,7 +99,9 @@ A seleção de projeto abre uma janela modal pelo campo ou pelo botão Escolher 
 
 Os controles Projeto e IA compartilham altura mínima de 48 px, borda de 2 px, raio de 12 px, fonte de 15 px com peso 800 e o mesmo indicador de abertura. O seletor de IA mostra o logo de cada ferramenta à esquerda do nome, tanto no valor atual quanto nas opções. Os SVGs são locais, em `public/ai/`, com atribuição e licença preservadas. O menu permite setas, Home, End, busca pelo nome, Enter, Espaço e Escape; o foco permanece no controle com indicação da opção ativa.
 
-O acompanhamento mantém trilha, balão de contexto, demandas e ações de continuidade. As consultas são Artefatos, Unidades e Decisões. A barra dos cinco passos e a aba de histórico foram removidas. Nova demanda reúne descrição, nível e prévia; confirmações de comando são transitórias. Aprovações acontecem no terminal, nos gates do AI-DLC.
+A tela inicial apresenta o balão de boas-vindas, a lista de demandas do projeto e uma faixa inferior com a ação Nova demanda. A marca retorna ao início. Abrir uma demanda leva ao acompanhamento, com trilha, balão de contexto e ações de continuidade. As consultas são Artefatos, Unidades e Decisões. A barra dos cinco passos e a aba de histórico foram removidas.
+
+Nova demanda usa três etapas: descrição do trabalho, sugestão e escolha do nível, e conferência do comando. A escolha mostra primeiro o nível sugerido, com opção de ver todos os níveis e pedir análise à IA. As ações de navegação ficam na faixa inferior, fora do conteúdo rolável. Voltar e visitar Personalizar preservam o preenchimento e a etapa; cancelar retorna ao início. A prévia mantém a confirmação explícita para executar ou colar sem Enter, respeitando o projeto e a IA selecionados. Confirmações são transitórias. Aprovações acontecem no terminal, nos gates do AI-DLC. A lista inicial identifica progresso desatualizado e não o apresenta como conclusão atual. Personalizar usa o botão secundário padrão.
 
 ## Componentes
 

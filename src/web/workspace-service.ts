@@ -39,6 +39,9 @@ export type WorkspaceView = {
     scope: string;
     isActive: boolean;
     readable: boolean;
+    stale: boolean;
+    currentStage: string | null;
+    progress: { done: number; total: number } | null;
   }[];
   detail: {
     intentId: string;
@@ -143,13 +146,30 @@ export async function readWorkspace(
       if (active.kind === 'ok' && !active.stale)
         view.activeStage = active.detail.currentStage?.stageSlug ?? null;
     }
-    view.demands = reader.listDemands().map((s) => ({
-      intentId: s.intentId,
-      title: s.title || s.intentId,
-      scope: s.scope,
-      isActive: s.isActive,
-      readable: s.readable,
-    }));
+    view.demands = reader.listDemands().map((s) => {
+      const read = reader.readDemand(s.intentId);
+      return {
+        intentId: s.intentId,
+        title: s.title || s.intentId,
+        scope: s.scope,
+        isActive: s.isActive,
+        readable: read.kind === 'ok',
+        stale: read.kind === 'ok' && read.stale,
+        currentStage: s.currentStage,
+        progress:
+          read.kind === 'ok'
+            ? demandProgress(
+                read.detail.phases
+                  .flatMap((phase) => phase.stages)
+                  .map((stage) => ({
+                    slug: stage.stageSlug,
+                    mark: stage.mark,
+                    planned: stage.planned,
+                  })),
+              )
+            : null,
+      };
+    });
     const id = query.intent || view.activeIntentId;
     if (!id) return view;
     const read = reader.readDemand(id);
