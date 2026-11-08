@@ -316,7 +316,7 @@ export function GuideApp() {
               });
             }}
           />
-          <button className="ctab" type="button" onClick={() => setCustomizing((v) => !v)}>
+          <button className="btn2" type="button" onClick={() => setCustomizing((v) => !v)}>
             Personalizar
           </button>
         </header>
