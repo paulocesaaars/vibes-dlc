@@ -6,7 +6,7 @@ A paleta tem origem no Nix; tipografia, componentes e organização das telas s�
 
 ## Princípios
 
-- Conduzir uma tarefa por vez, mostrando a instrução atual, de quem é a vez e no máximo uma ação principal por momento.
+- Acompanhar um projeto por vez, mostrando o estado registrado no AI-DLC e as ações disponíveis, sem deduzir atividade da IA pelo terminal.
 - Manter o guia e o terminal próximos, com a trilha das etapas disponível durante a execução.
 - Usar texto e símbolos junto às cores para distinguir estados.
 - Usar ilustrações e animações como apoio às instruções e à conclusão de etapas, sem pontos, vidas ou outras mecânicas de gamificação.
@@ -93,9 +93,13 @@ Em larguras de até 1180 px:
 
 ## Telas e navegação
 
-As telas principais são Início, Nova demanda, Guia da demanda e Personalizar. Nova demanda conduz descrição, escolha do nível e confirmação do comando. Quando o AI-DLC ainda não está disponível, o início apresenta a orientação de preparação do repositório.
+As áreas principais são Selecionar projeto, Acompanhamento, Nova demanda e Personalizar. O cabeçalho mantém os seletores Projeto e IA ao lado da marca, com quebra de linha quando necessário. Projeto mostra o nome e oferece o caminho completo; IA oferece Claude Code, Devin e GitHub Copilot. Uma linha abaixo mostra o caminho ativo e lembra que a IA é aberta manualmente no terminal.
 
-O guia mostra os cinco passos Entender, Enviar, Acompanhar, Revisar e Aprovar. As consultas de Artefatos, Unidades e ciclos, Decisões e Histórico oferecem retorno ao guia. Aprovações de etapa acontecem no terminal, nos gates do AI-DLC; a interface apresenta a orientação correspondente.
+A seleção de projeto abre uma janela modal pelo campo ou pelo botão Escolher pasta. A janela lista subpastas, permite subir um nível, ir à pasta pessoal ou informar um caminho e selecionar a pasta atual. Recentes têm um botão × no canto superior direito, visível ao passar o mouse, focar pelo teclado ou usar uma tela de toque. Remover um recente preserva a preferência de IA e a sessão ativa. Uma confirmação explícita aparece quando a troca exige encerrar uma sessão viva. Diagnósticos de arquivos ausentes ou incompatíveis permitem nova seleção, sem instruções de instalação.
+
+Os controles Projeto e IA compartilham altura mínima de 48 px, borda de 2 px, raio de 12 px, fonte de 15 px com peso 800 e o mesmo indicador de abertura. O seletor de IA mostra o logo de cada ferramenta à esquerda do nome, tanto no valor atual quanto nas opções. Os SVGs são locais, em `public/ai/`, com atribuição e licença preservadas. O menu permite setas, Home, End, busca pelo nome, Enter, Espaço e Escape; o foco permanece no controle com indicação da opção ativa.
+
+O acompanhamento mantém trilha, balão de contexto, demandas e ações de continuidade. As consultas são Artefatos, Unidades e Decisões. A barra dos cinco passos e a aba de histórico foram removidas. Nova demanda reúne descrição, nível e prévia; confirmações de comando são transitórias. Aprovações acontecem no terminal, nos gates do AI-DLC.
 
 ## Componentes
 
@@ -133,13 +137,13 @@ Fases usam cabeçalhos arredondados e etapas usam marcadores circulares:
 - Pendente: círculo com contorno neutro.
 - Pulada: círculo menor com contorno tracejado e rótulo riscado.
 
-A barra dos cinco passos tem segmentos de 12 px de altura e intervalo de 6 px. Passos alcançados recebem destaque; o atual pulsa. A barra contínua de progresso usa trilha neutra e preenchimento de destaque, com 10 px de altura.
+O progresso informa a quantidade de etapas concluídas segundo o arquivo de estado, acompanhado por indicador acessível. Não há progresso pessoal dos antigos cinco passos.
 
 ### Artefatos e histórico
 
-Seletores de artefatos (`.pillb`) têm altura mínima de 36 px. O selecionado recebe contorno escuro; o revisado usa fundo suave de sucesso, texto verde e marca de confirmação. Artefatos alterados exibem também o texto “mudou”.
+Seletores de artefatos (`.pillb`) têm altura mínima de 36 px. A seleção é identificada por estado acessível. Não há marcações de revisado, contagem de revisões ou indicação “mudou” baseada em hash pessoal.
 
-O artefato aparece em cartão com cabeçalho, caminho e conteúdo monoespaçado com quebra de linha. O conteúdo é texto puro, sem renderização de HTML. Comandos de orientação usam fundo suave (`.step-code`), e o histórico usa linhas separadas por bordas neutras.
+O artefato aparece em cartão com caminho e conteúdo monoespaçado com quebra de linha. O conteúdo é texto puro, sem renderização de HTML. A confirmação de comando usa cartão com campo monoespaçado editável, cópia e ações explícitas de execução, colagem e cancelamento. O histórico persistido foi removido.
 
 ### Faixas, avisos e carregamento
 
@@ -164,7 +168,7 @@ A interface da CLI é desenhada pela própria CLI dentro do terminal. O guia nã
 
 Personalizar reutiliza os mesmos cartões, campos, botões e abas. Cada momento oferece prévia da mídia e campos de texto. As cores usam seletor de 48 × 48 px, campo hexadecimal e restauração individual. A grade de cores adapta o número de colunas à largura disponível, com base de 220 px por item.
 
-Alterações têm efeito imediato. Cancelar recupera o estado do início da visita; Concluir mantém as mudanças. Restaurar tudo exige confirmação.
+Alterações têm efeito imediato. Cancelar recupera o estado do início da visita; Concluir mantém as mudanças. Restaurar tudo exige confirmação. As preferências visuais são globais para o usuário, fora dos projetos. O catálogo contém Início, Acompanhamento, Aprovação pendente, Alterações registradas e Trilha concluída. A escolha de IA fica no cabeçalho, separada desta tela.
 
 As artes padrão ficam em `public/guia/`. Imagens e vídeos usam texto alternativo ou nome acessível, preservam proporção e respeitam a largura disponível. As artes do guia usam `mix-blend-mode: multiply`. Falha de mídia personalizada recupera a arte original quando há alternativa definida.
 

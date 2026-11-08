@@ -1,4 +1,4 @@
-import { existsSync, lstatSync, readdirSync, readFileSync, statSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync, realpathSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { logger } from '@/config/logger';
 import type { RepoHealth, StageMark } from '@/core/types';
@@ -11,16 +11,9 @@ import {
   resolveArtifactPath,
   toArtifactItem,
 } from './artifacts';
-import { ChangeWatcher } from './change-watcher';
-import {
-  listDemandRows,
-  readDecisions,
-  readUnits,
-  type DecisionRow,
-  type UnitRow,
-} from './demand-browser';
+import { readDecisions, readUnits } from './demand-browser';
 import { computeSignature } from './file-signature';
-import { isSafeSlug, type QuestionOptions } from './open-questions';
+import { isSafeSlug } from '@/core/commands';
 import { parseState, type ParsedState } from './parse-state';
 import { type AidlcPaths, isSafeName, readActiveIntent, resolveAidlcPaths } from './paths';
 import { type GraphStage, readStageGraph } from './stage-graph';
@@ -97,32 +90,22 @@ function toStageStates(
 
 /** Lê o AI-DLC sem nunca escrever. Conteúdo lido é dado não confiável (C2). */
 export class AidlcReader {
-  private readonly listeners = new Set<(intentId: string | null) => void>();
   private readonly lastValid = new Map<string, LastValid>();
-  private tabCache: {
-    intentId: string;
-    signature: string;
-    units?: UnitRow[];
-    decisions?: DecisionRow[];
-  } | null = null;
-  private watcher: ChangeWatcher | null = null;
   private readonly work: WorkSignalsReader;
 
   constructor(
     private readonly repoRoot: string | null,
     private readonly now: () => number = Date.now,
-    private readonly watchOptions: { pollIntervalMs?: number; debounceMs?: number } = {},
-    questions: QuestionOptions | null = null,
   ) {
-    this.work = new WorkSignalsReader(now, questions);
+    this.work = new WorkSignalsReader(now);
   }
 
-  /** Posição, gate, perguntas e tempo sem mudança da demanda, a partir de `audit/` e do comando. */
+  /** Posição, gate e tempo sem mudança, somente a partir do estado e da auditoria. */
   async readWorkSignals(detail: DemandDetail): Promise<WorkSignals> {
     const paths = this.paths();
     const intentId = detail.summary.intentId;
     if (!paths || !this.repoRoot) throw new Error('A pasta do AI-DLC não foi encontrada.');
-    return this.work.read(detail, path.join(paths.intentsDir, intentId), this.repoRoot);
+    return this.work.read(detail, path.join(paths.intentsDir, intentId));
   }
 
   async readWorkPosition(intentId: string): Promise<WorkPosition | null> {
@@ -131,7 +114,7 @@ export class AidlcReader {
     return (await this.readWorkSignals(read.detail)).position;
   }
 
-  /** Artefatos da etapa, com o hash do conteúdo. A lista é relida a cada pedido (BR1.1). */
+  /** Artefatos da etapa. A lista é relida a cada pedido, sem marcas pessoais de revisão. */
   async listArtifacts(
     intentId: string,
     stageSlug: string,
@@ -155,13 +138,27 @@ export class AidlcReader {
     const recordDir = this.recordDir(intentId);
     if (!recordDir) return null;
     const resolved = await resolveArtifactPath(recordDir, relativePath);
-    return resolved ? readArtifactFile(resolved) : null;
+    if (!resolved) return null;
+    try {
+      return await readArtifactFile(resolved);
+    } catch (error) {
+      const code = (error as NodeJS.ErrnoException).code;
+      if (code === 'ENOENT' || code === 'ENOTDIR') return null;
+      throw error;
+    }
   }
 
   private recordDir(intentId: string): string | null {
     const paths = this.paths();
     if (!paths || !isSafeName(intentId)) return null;
-    return path.join(paths.intentsDir, intentId);
+    try {
+      const root = realpathSync.native(this.repoRoot!);
+      const record = realpathSync.native(path.join(paths.intentsDir, intentId));
+      const relative = path.relative(root, record);
+      return relative && !relative.startsWith('..') && !path.isAbsolute(relative) ? record : null;
+    } catch {
+      return null;
+    }
   }
 
   /** Lê a demanda ativa, sempre a partir dos cursores (BR5.7). */
@@ -183,84 +180,60 @@ export class AidlcReader {
 
     let attemptedPath = statePath;
     try {
+      const record = this.recordDir(intentId);
+      if (!record) throw new Error('O registro está ausente ou fora do projeto.');
+      const relative = path.relative(record, realpathSync.native(statePath));
+      if (relative.startsWith('..') || path.isAbsolute(relative))
+        throw new Error('Estado fora do registro.');
       const parsed = parseState(readFileSync(statePath, 'utf8'));
       const stateModifiedAtMs = statSync(statePath).mtimeMs;
       attemptedPath = paths.graphPath;
       const graph = new Map(readStageGraph(paths.graphPath).map((node) => [node.slug, node]));
+      if (parsed.stages.some((stage) => !graph.has(stage.slug))) {
+        throw new Error('O estado contém etapas ausentes no grafo instalado.');
+      }
       const detail = this.buildDetail(paths, intentId, parsed, graph, stateModifiedAtMs);
-      this.lastValid.set(intentId, { detail, failingSinceMs: null });
+      this.lastValid.set(statePath, { detail, failingSinceMs: null });
       return { kind: 'ok', detail, stale: false };
     } catch (error) {
-      return this.handleFailure(intentId, attemptedPath, error);
+      return this.handleFailure(statePath, attemptedPath, error);
     }
   }
 
   listDemands(): DemandSummary[] {
     const paths = this.paths();
     if (!paths || !existsSync(paths.intentsDir)) return [];
+    const archived = new Set<string>();
+    try {
+      const registry: unknown = JSON.parse(
+        readFileSync(path.join(paths.intentsDir, 'intents.json'), 'utf8'),
+      );
+      if (Array.isArray(registry)) {
+        for (const entry of registry) {
+          if (
+            entry &&
+            typeof entry === 'object' &&
+            'status' in entry &&
+            entry.status === 'archived' &&
+            'dirName' in entry &&
+            typeof entry.dirName === 'string'
+          )
+            archived.add(entry.dirName);
+        }
+      }
+    } catch {
+      // Registro ausente ou inválido: as pastas continuam sendo a fonte da lista.
+    }
     return readdirSync(paths.intentsDir, { withFileTypes: true })
-      .filter((entry) => entry.isDirectory() && isSafeName(entry.name))
+      .filter((entry) => entry.isDirectory() && isSafeName(entry.name) && !archived.has(entry.name))
       .map((entry) => this.summarize(entry.name));
   }
 
-  async listDemandRows() {
-    return this.repoRoot ? listDemandRows(this.repoRoot) : [];
-  }
-
   async readUnits(intentId: string) {
-    if (!this.repoRoot) return [];
-    const cache = this.tabCacheFor(intentId);
-    return (cache.units ??= await readUnits(this.repoRoot, intentId));
+    return this.repoRoot ? readUnits(this.repoRoot, intentId) : [];
   }
-
   async readDecisions(intentId: string) {
-    if (!this.repoRoot) return [];
-    const cache = this.tabCacheFor(intentId);
-    return (cache.decisions ??= await readDecisions(this.repoRoot, intentId));
-  }
-
-  private tabCacheFor(intentId: string) {
-    const record = this.recordDir(intentId);
-    let signature = 'missing';
-    if (record) {
-      try {
-        if (!lstatSync(record).isSymbolicLink()) {
-          const audit = path.join(record, 'audit');
-          const files = [path.join(record, 'inception', 'units-generation', 'unit-of-work.md')];
-          try {
-            if (!lstatSync(audit).isSymbolicLink()) {
-              files.push(
-                ...readdirSync(audit)
-                  .filter((name) => name.endsWith('.md'))
-                  .map((name) => path.join(audit, name)),
-              );
-            }
-          } catch {
-            /* Sem audit/. */
-          }
-          signature = files
-            .map((file) => {
-              try {
-                const stat = lstatSync(file);
-                return `${file}:${stat.size}:${stat.mtimeMs}`;
-              } catch {
-                return `${file}:missing`;
-              }
-            })
-            .join('|');
-        }
-      } catch {
-        /* Registro ausente. */
-      }
-    }
-    if (
-      !this.tabCache ||
-      this.tabCache.intentId !== intentId ||
-      this.tabCache.signature !== signature
-    ) {
-      this.tabCache = { intentId, signature };
-    }
-    return this.tabCache;
+    return this.repoRoot ? readDecisions(this.repoRoot, intentId) : [];
   }
 
   /** Comando oferecido na etapa atual (BR5.8). O nome da etapa fica ao lado, na interface. */
@@ -268,24 +241,8 @@ export class AidlcReader {
     return '/aidlc';
   }
 
-  /** Avisa só que algo mudou, e a interface pede a decisão de novo (C5). */
-  subscribe(listener: (intentId: string | null) => void): () => void {
-    this.listeners.add(listener);
-    this.ensureWatching();
-    return () => {
-      this.listeners.delete(listener);
-      if (this.listeners.size === 0) {
-        this.watcher?.stop();
-        this.watcher = null;
-      }
-    };
-  }
-
-  /** Para o vigia e solta as assinaturas. Chamado quando a raiz muda e este leitor é trocado. */
   close(): void {
-    this.watcher?.stop();
-    this.watcher = null;
-    this.listeners.clear();
+    this.lastValid.clear();
   }
 
   private paths(): AidlcPaths | null {
@@ -328,11 +285,11 @@ export class AidlcReader {
     };
   }
 
-  private handleFailure(intentId: string, failedPath: string, error: unknown): DemandRead {
+  private handleFailure(statePath: string, failedPath: string, error: unknown): DemandRead {
     const reason = error instanceof Error ? error.message : String(error);
     logger.warn('aidlc', `Não foi possível ler ${failedPath}: ${reason}.`);
 
-    const last = this.lastValid.get(intentId);
+    const last = this.lastValid.get(statePath);
     if (!last) return { kind: 'failure', health: 'unreadable_record', failedPath };
 
     const failingSinceMs = last.failingSinceMs ?? this.now();
@@ -355,51 +312,5 @@ export class AidlcReader {
       readable: false,
       lastChangedAt: new Date(0).toISOString(),
     };
-  }
-
-  private observedRoots(paths: AidlcPaths): string[] {
-    const intentId = readActiveIntent(paths);
-    const record = intentId ? [path.join(paths.intentsDir, intentId)] : [];
-    return [
-      paths.activeSpaceCursor,
-      paths.activeIntentCursor,
-      path.join(paths.intentsDir, 'intents.json'),
-      ...record,
-    ];
-  }
-
-  private intentsSignature(paths: AidlcPaths): string {
-    let names: string[];
-    try {
-      names = readdirSync(paths.intentsDir, { withFileTypes: true })
-        .filter((entry) => entry.isDirectory() && isSafeName(entry.name))
-        .map((entry) => entry.name)
-        .sort();
-    } catch {
-      return 'sem-intents';
-    }
-    const states = names.map((name) => path.join(paths.intentsDir, name, 'aidlc-state.md'));
-    return `${names.join('|')}:${computeSignature(states).signature}`;
-  }
-
-  private ensureWatching(): void {
-    if (this.watcher || !this.repoRoot) return;
-    const aidlcDir = path.join(this.repoRoot, 'aidlc');
-    this.watcher = new ChangeWatcher({
-      ...this.watchOptions,
-      watchDir: aidlcDir,
-      readSignature: () => {
-        const paths = this.paths();
-        return paths
-          ? `${computeSignature(this.observedRoots(paths)).signature}:${this.intentsSignature(paths)}`
-          : 'missing';
-      },
-      onChange: () => {
-        const paths = this.paths();
-        const intentId = paths ? readActiveIntent(paths) : null;
-        for (const listener of this.listeners) listener(intentId);
-      },
-    });
-    this.watcher.start();
   }
 }

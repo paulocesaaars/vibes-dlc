@@ -16,8 +16,6 @@ import {
 import { extensionOf, isMediaContentType, MAX_MEDIA_BYTES, type MediaType } from './media-type';
 import { SAY_LIMITS, type SayField } from './tokens';
 
-export type CliKindValue = 'claude_code' | 'other';
-
 export type ErrorCode =
   'invalid_value' | 'unsupported_type' | 'too_large' | 'stale_visit' | 'no_storage' | 'save_failed';
 
@@ -56,14 +54,12 @@ export type CustomizationState = {
   warnings: ContrastWarning[];
   says: Record<string, Partial<Record<SayField, string>>>;
   media: Record<string, MediaView>;
-  cliKind: CliKindValue;
 };
 
 export type CustomizationPatch = {
   colors?: Partial<Record<string, string | null>>;
   says?: Record<string, Partial<Record<SayField, string | null>>>;
   media?: Record<string, null>;
-  cliKind?: CliKindValue | null;
   resetAll?: boolean;
 };
 
@@ -118,7 +114,6 @@ type Dependencies = {
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const MEDIA_FILE = /^([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\.[a-z0-9]+$/i;
-const CLI_KEY = 'ai_cli';
 
 export function isUuid(value: string): boolean {
   return UUID.test(value);
@@ -169,21 +164,7 @@ export class CustomizationService {
     return this.build(this.repo.all());
   }
 
-  /** A escolha de Sua IA; sem linha, vale `claude_code` (BR6.1). */
-  readCliKind(): CliKindValue {
-    try {
-      const row = this.repo.all().find((item) => item.itemKey === CLI_KEY);
-      return row?.value === 'other' ? 'other' : 'claude_code';
-    } catch (error) {
-      this.log.error(
-        'personalização',
-        `read_failed caminho=.vibes/vibes.db motivo=${describe(error)}`,
-      );
-      return 'claude_code';
-    }
-  }
-
-  /** Dados do arquivo de uma mídia, achada só pelo `mediaId` guardado (BR1.4). */
+  /** Localiza a mídia pelo identificador salvo nas preferências. */
   mediaFile(
     mediaId: string,
   ): { filePath: string; contentType: MediaType['contentType']; sizeBytes: number } | null {
@@ -194,7 +175,11 @@ export class CustomizationService {
       const media = parseMedia(row.value);
       if (media?.mediaId.toLowerCase() === mediaId.toLowerCase()) {
         return {
-          filePath: path.join(mediaDir, `${media.mediaId}.${extensionOf(media.contentType)}`),
+          // Mídia do perfil do usuário: existe somente em execução, fora do pacote do servidor.
+          filePath: path.join(
+            /* turbopackIgnore: true */ mediaDir,
+            `${media.mediaId}.${extensionOf(media.contentType)}`,
+          ),
           contentType: media.contentType,
           sizeBytes: media.sizeBytes,
         };
@@ -229,7 +214,7 @@ export class CustomizationService {
       try {
         this.repo.replaceAll([...next.values()]);
       } catch (error) {
-        this.saveFailed('put', '.vibes/vibes.db', error);
+        this.saveFailed('put', 'preferences.db', error);
       }
       visit.replacedMediaIds.push(...replaced);
       return this.read();
@@ -250,7 +235,7 @@ export class CustomizationService {
         this.log.warn('personalização', 'no_storage operação=media');
         throw new CustomizationError(
           'no_storage',
-          'Sem o AI-DLC no projeto não há onde guardar a imagem. Instale o AI-DLC e tente de novo.',
+          'O armazenamento local de mídia não está disponível.',
         );
       }
       if (bytes.length < 1) {
@@ -261,8 +246,11 @@ export class CustomizationService {
       }
       const mediaId = randomUUID();
       const temporary = path.join(mediaDir, `${mediaId}.tmp`);
-      const finalPath = path.join(mediaDir, `${mediaId}.${type.extension}`);
-      const shown = `.vibes/media/${mediaId}.${type.extension}`;
+      const finalPath = path.join(
+        /* turbopackIgnore: true */ mediaDir,
+        `${mediaId}.${type.extension}`,
+      );
+      const shown = `media/${mediaId}.${type.extension}`;
       try {
         await this.files.mkdir(mediaDir);
         await this.files.writeFile(temporary, bytes);
@@ -316,7 +304,7 @@ export class CustomizationService {
       try {
         this.repo.replaceAll(visit.snapshot);
       } catch (error) {
-        this.saveFailed('cancel', '.vibes/vibes.db', error);
+        this.saveFailed('cancel', 'preferences.db', error);
       }
       const rows = this.repo.all();
       await this.removeUnused(visit.createdMediaIds, rows);
@@ -354,10 +342,7 @@ export class CustomizationService {
           await this.files.rm(path.join(mediaDir, name));
           removed++;
         } catch (error) {
-          this.log.error(
-            'personalização',
-            `read_failed caminho=.vibes/media motivo=${describe(error)}`,
-          );
+          this.log.error('personalização', `read_failed caminho=media motivo=${describe(error)}`);
         }
       }
       if (removed > 0) this.log.info('personalização', `media_sweep_removed quantidade=${removed}`);
@@ -408,10 +393,7 @@ export class CustomizationService {
     try {
       await this.files.rm(file);
     } catch (error) {
-      this.log.error(
-        'personalização',
-        `read_failed caminho=.vibes/media motivo=${describe(error)}`,
-      );
+      this.log.error('personalização', `read_failed caminho=media motivo=${describe(error)}`);
     }
   }
 
@@ -423,7 +405,9 @@ export class CustomizationService {
     for (const mediaId of new Set(mediaIds)) {
       if (used.has(mediaId.toLowerCase())) continue;
       for (const extension of ['png', 'jpg', 'gif', 'webp', 'mp4', 'webm']) {
-        await this.quietRemove(path.join(mediaDir, `${mediaId}.${extension}`));
+        await this.quietRemove(
+          path.join(/* turbopackIgnore: true */ mediaDir, `${mediaId}.${extension}`),
+        );
       }
     }
   }
@@ -432,7 +416,6 @@ export class CustomizationService {
     const custom: Partial<ColorMap> = {};
     const says: CustomizationState['says'] = {};
     const media: CustomizationState['media'] = {};
-    let cliKind: CliKindValue = 'claude_code';
     for (const row of rows) {
       const [group, first, second] = row.itemKey.split('.');
       if (row.kind === 'color' && group === 'color' && first && isColorKey(first)) {
@@ -455,8 +438,6 @@ export class CustomizationService {
             sizeBytes: stored.sizeBytes,
           };
         }
-      } else if (row.kind === 'cli' && row.itemKey === CLI_KEY && row.value === 'other') {
-        cliKind = 'other';
       }
     }
     const effective: ColorMap = { ...ORIGINAL_COLORS, ...custom };
@@ -467,7 +448,6 @@ export class CustomizationService {
       warnings: contrastWarnings(effective),
       says,
       media,
-      cliKind,
     };
   }
 
@@ -481,7 +461,7 @@ export class CustomizationService {
       next.set(itemKey, { itemKey, kind, value, updatedAt });
 
     if (patch.resetAll) {
-      if (patch.colors || patch.says || patch.media || patch.cliKind !== undefined) {
+      if (patch.colors || patch.says || patch.media) {
         throw new CustomizationError('invalid_value', 'Restaurar tudo não aceita outras mudanças.');
       }
       for (const [itemKey, row] of [...next]) {
@@ -489,7 +469,7 @@ export class CustomizationService {
           const media = parseMedia(row.value);
           if (media) replaced.push(media.mediaId);
         }
-        if (itemKey !== CLI_KEY) next.delete(itemKey);
+        next.delete(itemKey);
       }
       return;
     }
@@ -537,15 +517,6 @@ export class CustomizationService {
       const media = row ? parseMedia(row.value) : null;
       if (media) replaced.push(media.mediaId);
       next.delete(itemKey);
-    }
-
-    if (patch.cliKind !== undefined) {
-      if (patch.cliKind === null) next.delete(CLI_KEY);
-      else if (patch.cliKind === 'claude_code' || patch.cliKind === 'other') {
-        set(CLI_KEY, 'cli', patch.cliKind);
-      } else {
-        throw new CustomizationError('invalid_value', 'Escolha Claude Code ou Outra CLI.');
-      }
     }
   }
 }

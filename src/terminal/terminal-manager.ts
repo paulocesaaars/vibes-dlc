@@ -135,11 +135,22 @@ export class TerminalManager {
 
   /** Encerra a sessão por pedido da pessoa. Nada abre sozinho depois disso (BR3.6). */
   kill(): void {
+    this.killForSwitch();
+  }
+
+  /** Na troca de projeto, uma falha de encerramento impede ativar o novo contexto. */
+  killForSwitch(): void {
     const session = this.session;
-    if (session?.status !== 'alive') return;
-    const shell = session.pty;
-    this.finish(session, 'killed');
-    if (shell) this.terminate(shell);
+    if (session?.status !== 'alive' || !session.pty) return;
+    (this.options.killShell ?? defaultKillShell)(session.pty);
+    if (session.status === 'alive') this.finish(session, 'killed');
+  }
+
+  /** Descarta também a saída e a identidade: o próximo projeto não pode rever o terminal anterior. */
+  resetForProject(): void {
+    this.killForSwitch();
+    this.session = null;
+    this.notifyStatus();
   }
 
   /** Encerra o shell com a árvore de processos quando o servidor para. Precisa ser síncrono. */

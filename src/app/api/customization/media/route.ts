@@ -7,14 +7,13 @@ import { parseMultipart } from '@/web/multipart';
 import { rejectForeignRequest } from '@/web/request-guard';
 import { errorResponse, jsonResponse } from '@/web/responses';
 import { getRuntime } from '@/web/runtime';
-import { guardRuntimeChange } from '@/web/runtime-guard';
 
 export const dynamic = 'force-dynamic';
 
 const TOO_LARGE = 'O arquivo passa de 25 MB. Escolha um menor.';
 
 /** Envia uma imagem ou um vídeo para um momento: multipart com `file`, `momentKey` e `visitId`. */
-async function handlePost(request: Request): Promise<Response> {
+export async function POST(request: Request): Promise<Response> {
   const runtime = getRuntime();
   const rejected = rejectForeignRequest(request, runtime.config);
   if (rejected) return rejected;
@@ -68,6 +67,3 @@ async function handlePost(request: Request): Promise<Response> {
     release();
   }
 }
-
-/** Se a raiz mudar durante o envio, a resposta é 503 com uma mensagem, e nada se perde sem aviso. */
-export const POST = guardRuntimeChange(handlePost);

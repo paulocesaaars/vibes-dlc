@@ -543,39 +543,6 @@ export function Customize({ onChange, onClose, notices }: CustomizeProps) {
           </div>
         </section>
 
-        <section className="card card-pad" style={cardStack}>
-          <h2 className="section-title">Sua IA</h2>
-          <fieldset className="cz-fieldset stack-8" disabled={disabled}>
-            <legend>Qual CLI você usa no terminal?</legend>
-            <label className="cz-radio">
-              <input
-                type="radio"
-                name="cli-kind"
-                data-testid="cli-claude_code"
-                checked={state.cliKind === 'claude_code'}
-                onChange={() => save({ cliKind: 'claude_code' })}
-              />
-              Claude Code
-            </label>
-            <label className="cz-radio">
-              <input
-                type="radio"
-                name="cli-kind"
-                data-testid="cli-other"
-                checked={state.cliKind === 'other'}
-                onChange={() => save({ cliKind: 'other' })}
-              />
-              Outra CLI
-            </label>
-            {state.cliKind === 'other' ? (
-              <p className="muted" data-testid="cli-other-note">
-                Com Outra CLI, o guia mostra o comando como referência, sem botão de envio. Você
-                digita o equivalente na sua IA.
-              </p>
-            ) : null}
-          </fieldset>
-        </section>
-
         <p className="muted" style={{ fontSize: 15 }} data-testid="fixed-list">
           Ficam fixos: a trilha e as etapas do AI-DLC, os comandos, o logo do Vibes DLC e o
           terminal.

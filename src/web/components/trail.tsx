@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import type { TrailStatus } from '@/core/types';
-import type { TrailPhase } from '@/web/guide-service';
+import type { TrailPhase } from '@/web/workspace-service';
 
 const CHECK_PATH = 'M20 6 9 17l-5-5';
 /** Recuos do desenho da trilha no protótipo. */

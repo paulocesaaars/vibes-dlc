@@ -1223,3 +1223,201 @@ button {
   padding: 0;
   font-weight: 800;
 }
+/* Seleção de contexto e acompanhamento por arquivos. */
+.workspace-top {
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.project-picker {
+  max-width: 260px;
+}
+.ai-picker {
+  position: relative;
+  min-width: 0;
+  max-width: 100%;
+}
+.context-picker {
+  text-transform: uppercase;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 48px;
+  max-width: 100%;
+  padding: 10px 14px;
+  border: 2px solid var(--ink);
+  border-radius: 12px;
+  background: var(--paper);
+  color: var(--ink);
+  font: inherit;
+  font-size: 15px;
+  font-weight: 800;
+  cursor: pointer;
+}
+.context-picker:hover:not(:disabled) {
+  background: var(--wash);
+}
+.context-picker:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+.picker-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.picker-chevron {
+  flex: 0 0 auto;
+}
+.ai-picker img {
+  flex: 0 0 auto;
+}
+.ai-options {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + 6px);
+  right: 0;
+  min-width: 100%;
+  width: max-content;
+  max-width: calc(100vw - 40px);
+  padding: 4px;
+  border: 2px solid var(--ink);
+  border-radius: 12px;
+  background: var(--paper);
+}
+.ai-option {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  color: var(--ink);
+  font-size: 15px;
+  cursor: pointer;
+}
+.ai-option-active {
+  background: var(--wash);
+  outline: 2px solid var(--line);
+  outline-offset: -2px;
+}
+.ai-option[aria-selected='true'] {
+  font-weight: 800;
+}
+.picker-check {
+  width: 16px;
+  margin-left: auto;
+}
+.workspace-context {
+  margin: 0;
+  padding: 8px 20px;
+  font-size: 13px;
+  color: var(--gray);
+  overflow-wrap: anywhere;
+  border-bottom: 2px solid var(--line);
+}
+.project-form {
+  margin: 12px 20px;
+  flex-shrink: 0;
+  max-height: 35vh;
+  overflow: auto;
+}
+.workspace-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+.workspace-actions .field {
+  flex: 1 1 240px;
+  min-width: 0;
+}
+.recent-project {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  margin-top: 8px;
+  text-transform: none;
+}
+.recent-project-item {
+  position: relative;
+  max-width: 100%;
+  padding-top: 8px;
+}
+.recent-project-item .recent-project {
+  margin-top: 0;
+  padding-right: 32px;
+}
+.recent-project-remove {
+  position: absolute;
+  top: 3px;
+  right: 0;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 2px solid var(--ink);
+  border-radius: 50%;
+  background: var(--paper);
+  color: var(--ink);
+  font: inherit;
+  cursor: pointer;
+  opacity: 0;
+}
+.recent-project-item:hover .recent-project-remove,
+.recent-project-item:focus-within .recent-project-remove {
+  opacity: 1;
+}
+@media (hover: none) {
+  .recent-project-remove {
+    opacity: 1;
+  }
+}
+.directory-dialog {
+  width: min(640px, calc(100vw - 32px));
+  max-height: 85dvh;
+  margin: auto;
+  color: var(--ink);
+  background: var(--paper);
+  overflow: auto;
+}
+.directory-dialog::backdrop {
+  background: rgb(0 0 0 / 40%);
+}
+.directory-dialog > * + * {
+  margin-top: 16px;
+}
+.directory-folders {
+  display: grid;
+  gap: 8px;
+  max-height: 38dvh;
+  overflow: auto;
+}
+.directory-folders button {
+  text-align: left;
+  overflow-wrap: anywhere;
+  text-transform: none;
+}
+.artifact-text {
+  font-size: 13px;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.artifact-path {
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+.empty-terminal {
+  color: #ccc;
+  padding: 24px;
+}
+.workspace-top .brand {
+  margin-right: auto;
+}
+@media (max-width: 1180px) {
+  .workspace-top .project-picker {
+    max-width: 100%;
+  }
+  .project-form {
+    max-height: none;
+  }
+}

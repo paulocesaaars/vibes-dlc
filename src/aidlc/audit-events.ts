@@ -1,5 +1,5 @@
 import { createReadStream } from 'node:fs';
-import { readdir, stat } from 'node:fs/promises';
+import { readdir, stat, realpath } from 'node:fs/promises';
 import path from 'node:path';
 import { createInterface } from 'node:readline';
 
@@ -138,6 +138,12 @@ export type AuditFiles = { files: string[]; signature: string; lastModifiedMs: n
 export async function listAuditFiles(auditDir: string): Promise<AuditFiles> {
   let names: string[];
   try {
+    const record = await realpath(path.dirname(auditDir));
+    const audit = await realpath(auditDir);
+    const relative = path.relative(record, audit);
+    if (!relative || relative.startsWith('..') || path.isAbsolute(relative)) {
+      throw new Error('A pasta de auditoria está fora do registro.');
+    }
     names = await readdir(auditDir);
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
@@ -145,10 +151,20 @@ export async function listAuditFiles(auditDir: string): Promise<AuditFiles> {
     }
     throw error;
   }
-  const files = names
+  const candidates = names
     .filter((name) => name.endsWith('.md'))
     .sort()
     .map((name) => path.join(auditDir, name));
+  const record = await realpath(path.dirname(auditDir));
+  const files: string[] = [];
+  for (const candidate of candidates) {
+    const resolved = await realpath(candidate);
+    const relative = path.relative(record, resolved);
+    if (!relative || relative.startsWith('..') || path.isAbsolute(relative)) {
+      throw new Error('Arquivo de auditoria fora do registro.');
+    }
+    if ((await stat(resolved)).isFile()) files.push(resolved);
+  }
   const stats = await Promise.all(files.map((file) => stat(file)));
   return {
     files,
@@ -175,7 +191,12 @@ async function readRelevantEvents(file: string): Promise<AuditEvent[]> {
     input: createReadStream(file, { encoding: 'utf8' }),
     crlfDelay: Infinity,
   });
-  for await (const line of lines) parser.push(line);
+  for await (const line of lines) {
+    if (/^(?:<{7} |={7}$|>{7} )/.test(line)) {
+      throw new Error('A auditoria contém um conflito de merge.');
+    }
+    parser.push(line);
+  }
   if (tail.event) kept.push(tail.event);
   return kept;
 }

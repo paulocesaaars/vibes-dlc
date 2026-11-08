@@ -1,177 +1,64 @@
-/**
- * Momentos do guia e da navegação cuja arte, título e texto podem ser trocados (BR2.2). A lista é
- * dado estático: quem a lê decide o que aceitar, e o `failure` fica de fora para a instrução de
- * falha nunca ser escondida.
- */
 export type CustomizableMoment = {
   momentKey: string;
-  /** Nome mostrado na tela Personalizar. */
   name: string;
   defaultTitle: string;
   defaultText: string;
-  /** Marcações aceitas no título e no texto, sem as chaves. */
   tokens: readonly string[];
-  /** Arte original do momento, usada quando não há mídia personalizada. */
   defaultArtSrc: string;
-  /** Falso nos momentos de recuperação, que aceitam só a arte. */
   textEditable: boolean;
 };
-
-const ART = {
-  boasvindas: '/guia/boasvindas.webp',
-  nix: '/guia/nix-base.webp',
-  entender: '/guia/entender.webp',
-  comando: '/guia/comando.webp',
-  pergunta: '/guia/pergunta.webp',
-  revisao: '/guia/revisao.webp',
-  trabalhando: '/guia/trabalhando.webp',
-  aprovar: '/guia/aprovar.webp',
-  conclusao: '/guia/conclusao.webp',
-} as const;
-
-function moment(
-  momentKey: string,
-  name: string,
-  defaults: [title: string, text: string],
-  defaultArtSrc: string,
-  tokens: readonly string[] = [],
-  textEditable = true,
-): CustomizableMoment {
-  return {
-    momentKey,
-    name,
-    defaultTitle: defaults[0],
-    defaultText: defaults[1],
-    tokens,
-    defaultArtSrc,
-    textEditable,
-  };
-}
-
 export const CUSTOMIZABLE_MOMENTS: readonly CustomizableMoment[] = [
-  moment(
-    'home',
-    'Início',
-    [
-      'Olá! Eu te guio em cada etapa',
-      'Você decide e aprova. A sua IA faz o trabalho no terminal ao lado. Escolha por onde continuar.',
-    ],
-    ART.boasvindas,
-  ),
-  moment(
-    'new_describe',
-    'Nova demanda, passo 1',
-    [
-      'Conte o que precisa ser feito',
-      'Uma ou duas frases bastam. Com isso eu sugiro o tamanho certo do fluxo.',
-    ],
-    ART.nix,
-  ),
-  moment(
-    'new_level',
-    'Nova demanda, passo 2',
-    ['Sugiro o nível {nivel}', '{motivo} A escolha é sua: confirme ou veja os outros níveis.'],
-    ART.pergunta,
-    ['nivel', 'motivo'],
-  ),
-  moment(
-    'new_confirm',
-    'Nova demanda, passo 3',
-    [
-      'Confira o comando',
-      'É isto que será digitado na sua IA. Nada é enviado sem a sua confirmação.',
-    ],
-    ART.comando,
-  ),
-  moment('understand', 'Entender a etapa', ['{etapa}', '{descricao}'], ART.entender, [
-    'etapa',
-    'descricao',
-  ]),
-  moment(
-    'send',
-    'Confirmar o comando',
-    [
-      'Confira o comando',
-      'Só vai para a sua IA quando você confirmar. Se precisar, edite aqui mesmo.',
-    ],
-    ART.comando,
-  ),
-  moment(
-    'pasted',
-    'Comando colado',
-    [
-      'Pressione Enter no terminal',
-      'O comando já está na linha do terminal, mas ainda não rodou. Ajuste lá se quiser.',
-    ],
-    ART.comando,
-  ),
-  moment(
-    'following',
-    'IA trabalhando',
-    ['Pode acompanhar daqui', 'Se a sua IA perguntar algo, responda no terminal.'],
-    ART.trabalhando,
-    ['etapa'],
-  ),
-  moment(
-    'question',
-    'Pergunta da IA',
-    ['A sua IA tem uma pergunta', 'Ela precisa de uma decisão sua para continuar.'],
-    ART.pergunta,
-  ),
-  moment(
-    'review',
-    'Revisar os artefatos',
-    [
-      'Leia antes de aprovar',
-      'Esta é a parte mais importante: é aqui que você garante a qualidade. Se algo estiver errado, peça alterações no terminal.',
-    ],
-    ART.revisao,
-  ),
-  moment(
-    'approve',
-    'Aprovar',
-    ['Agora é só aprovar', 'Quem registra a aprovação é o AI-DLC, então ela é dada no terminal.'],
-    ART.aprovar,
-  ),
-  moment(
-    'revising',
-    'Pedir alterações',
-    ['A sua IA está refazendo', 'A sua IA refaz o artefato e pede a sua aprovação de novo.'],
-    ART.revisao,
-  ),
-  moment(
-    'conclusion',
-    'Etapa concluída',
-    ['Etapa concluída!', 'Mais uma parte da trilha foi aprovada.'],
-    ART.conclusao,
-  ),
-  moment(
-    'trail_done',
-    'Trilha concluída',
-    [
-      'Trilha concluída!',
-      'Todas as etapas foram aprovadas. Os comandos enviados pelo painel estão logo abaixo.',
-    ],
-    ART.conclusao,
-  ),
-  moment(
-    'session_dead',
-    'Sessão encerrada (só a arte)',
-    ['Abra uma nova sessão do terminal', 'A sessão foi encerrada.'],
-    ART.pergunta,
-    [],
-    false,
-  ),
-  moment(
-    'not_active',
-    'Demanda não ativa (só a arte)',
-    ['Esta não é a demanda ativa', 'O AI-DLC está com outra demanda ativa.'],
-    ART.pergunta,
-    [],
-    false,
-  ),
+  {
+    momentKey: 'home',
+    name: 'Início',
+    defaultTitle: 'Seu projeto, do ponto registrado',
+    defaultText:
+      'Escolha uma demanda para acompanhar os arquivos do AI-DLC. As interações com a sua IA acontecem no terminal.',
+    tokens: [],
+    defaultArtSrc: '/guia/boasvindas.webp',
+    textEditable: true,
+  },
+  {
+    momentKey: 'following',
+    name: 'Acompanhamento',
+    defaultTitle: '{etapa}',
+    defaultText:
+      'O painel mostra o andamento registrado pelo AI-DLC. Continue e responda à sua IA no terminal.',
+    tokens: ['etapa'],
+    defaultArtSrc: '/guia/trabalhando.webp',
+    textEditable: true,
+  },
+  {
+    momentKey: 'approve',
+    name: 'Aprovação pendente',
+    defaultTitle: 'Aprovação pendente',
+    defaultText:
+      'Consulte os artefatos antes de decidir. A aprovação ou o pedido de alterações é registrado pelo AI-DLC no terminal.',
+    tokens: ['etapa'],
+    defaultArtSrc: '/guia/aprovar.webp',
+    textEditable: true,
+  },
+  {
+    momentKey: 'revising',
+    name: 'Alterações registradas',
+    defaultTitle: 'Alterações solicitadas',
+    defaultText:
+      'O AI-DLC registrou revisão ou rejeição. Consulte os registros e continue pelo terminal.',
+    tokens: ['etapa'],
+    defaultArtSrc: '/guia/revisao.webp',
+    textEditable: true,
+  },
+  {
+    momentKey: 'trail_done',
+    name: 'Trilha concluída',
+    defaultTitle: 'Trilha concluída',
+    defaultText:
+      'O AI-DLC registrou a conclusão das etapas planejadas e a aprovação da etapa final.',
+    tokens: [],
+    defaultArtSrc: '/guia/conclusao.webp',
+    textEditable: true,
+  },
 ];
-
-export function findMoment(momentKey: string): CustomizableMoment | undefined {
-  return CUSTOMIZABLE_MOMENTS.find((entry) => entry.momentKey === momentKey);
+export function findMoment(key: string): CustomizableMoment | undefined {
+  return CUSTOMIZABLE_MOMENTS.find((m) => m.momentKey === key);
 }

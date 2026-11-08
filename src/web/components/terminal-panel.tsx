@@ -222,7 +222,18 @@ export const TerminalPanel = forwardRef<TerminalPanelHandle, TerminalPanelProps>
                 <path d="m9 6 6 6-6 6" />
               </svg>
             </button>
-            <span data-testid="terminal-title">{title}</span>
+            <span
+              data-testid="terminal-title"
+              title={title}
+              style={{
+                minWidth: 0,
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              {title}
+            </span>
             <span style={{ flex: '1 1 auto' }} />
             <button
               className="term-action"

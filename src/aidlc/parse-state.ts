@@ -53,6 +53,9 @@ function parseStages(text: string): StateStage[] {
 
 /** Traduz `aidlc-state.md` (C8). Este módulo é a única camada que conhece o formato. */
 export function parseState(text: string): ParsedState {
+  if (/^(?:<{7} |={7}$|>{7} )/m.test(text)) {
+    throw new StateParseError('o arquivo contém um conflito de merge');
+  }
   const stages = parseStages(text);
   if (stages.length === 0)
     throw new StateParseError('a seção Stage Progress está vazia ou faltando');

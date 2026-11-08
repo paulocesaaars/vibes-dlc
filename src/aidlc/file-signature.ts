@@ -1,4 +1,4 @@
-import { readdirSync, statSync } from 'node:fs';
+import { readdirSync, lstatSync } from 'node:fs';
 import path from 'node:path';
 
 const MAX_ENTRIES = 5000;
@@ -7,7 +7,8 @@ export type FileSignature = { signature: string; lastModifiedMs: number };
 
 function statOrNull(filePath: string): { mtimeMs: number; isDirectory: boolean } | null {
   try {
-    const stats = statSync(filePath);
+    const stats = lstatSync(filePath);
+    if (stats.isSymbolicLink()) return null;
     return { mtimeMs: stats.mtimeMs, isDirectory: stats.isDirectory() };
   } catch {
     // O arquivo pode sumir entre listar e ler, e isso já aparece como mudança na assinatura.
@@ -33,11 +34,11 @@ export function computeSignature(roots: string[]): FileSignature {
     const current = queue.pop() as string;
     const stats = statOrNull(current);
     if (!stats) continue;
+    count += 1;
     if (stats.isDirectory) {
       queue.push(...listDirectory(current));
       continue;
     }
-    count += 1;
     sum += stats.mtimeMs;
     lastModifiedMs = Math.max(lastModifiedMs, stats.mtimeMs);
   }

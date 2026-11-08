@@ -9,7 +9,7 @@ export function customizationFailure(error: unknown): Response {
   }
   logger.error(
     'personalização',
-    `read_failed caminho=.vibes/vibes.db motivo=${error instanceof Error ? error.message : String(error)}`,
+    `read_failed caminho=preferences.db motivo=${error instanceof Error ? error.message : String(error)}`,
   );
   return errorResponse(500, 'save_failed', 'Não foi possível concluir. Tente de novo.');
 }

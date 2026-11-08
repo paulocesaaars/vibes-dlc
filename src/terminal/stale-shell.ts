@@ -4,7 +4,7 @@ import { logger } from '@/config/logger';
 
 export type CommandRunner = (file: string, args: string[]) => string;
 
-/** O que fica em `.vibes/terminal.pid`: o shell, o servidor dono dele e quando o shell abriu. */
+/** Controle operacional local do shell: processo, servidor dono e horário de abertura. */
 export type ShellRecord = { shellPid: number; ownerPid: number; startedAt: number };
 
 /** Folga entre o horário gravado pelo servidor e o horário de início que o Windows informa. */

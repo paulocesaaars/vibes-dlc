@@ -3,12 +3,13 @@ import { z } from 'zod';
 
 export type GraphStage = { slug: string; number: string; phase: string; leadAgent: string };
 
+const safeSlug = z.string().regex(/^[a-z0-9][a-z0-9-]*$/);
 const graphSchema = z.array(
   z
     .object({
-      slug: z.string(),
+      slug: safeSlug,
       number: z.string(),
-      phase: z.string(),
+      phase: safeSlug,
       lead_agent: z.string().optional(),
     })
     .transform((node) => ({
@@ -21,5 +22,16 @@ const graphSchema = z.array(
 
 /** Lê a lista de etapas do framework instalado. Nenhuma contagem fica fixa no código (BR4.3). */
 export function readStageGraph(graphPath: string): GraphStage[] {
-  return graphSchema.parse(JSON.parse(readFileSync(graphPath, 'utf8')));
+  let stages: GraphStage[];
+  try {
+    stages = graphSchema.min(1).parse(JSON.parse(readFileSync(graphPath, 'utf8')));
+  } catch {
+    throw new Error(
+      `O grafo do AI-DLC está ausente, ilegível ou em formato incompatível: ${graphPath}`,
+    );
+  }
+  if (new Set(stages.map((stage) => stage.slug)).size !== stages.length) {
+    throw new Error('O grafo do AI-DLC contém etapas duplicadas.');
+  }
+  return stages;
 }

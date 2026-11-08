@@ -6,7 +6,6 @@ export type CustomizationPutBody = {
   colors?: Record<string, string | null>;
   says?: Record<string, { title?: string | null; text?: string | null }>;
   media?: Record<string, null>;
-  cliKind?: 'claude_code' | 'other' | null;
   resetAll?: true;
 };
 

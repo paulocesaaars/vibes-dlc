@@ -1,20 +1,7 @@
 import { readFile, readdir, realpath } from 'node:fs/promises';
 import path from 'node:path';
-import { parseState } from './parse-state';
-import { isSafeName, readActiveIntent, resolveAidlcPaths } from './paths';
+import { isSafeName, resolveAidlcPaths } from './paths';
 
-export type DemandRow = {
-  intentId: string;
-  title: string;
-  scope: string;
-  stageLabel: string | null;
-  doneCount: number;
-  totalCount: number;
-  turn: 'person' | 'ai' | 'guide' | 'unknown';
-  isActive: boolean;
-  readable: boolean;
-  failedPath?: string;
-};
 export type UnitRow = {
   unitName: string;
   description: string;
@@ -32,100 +19,6 @@ export type DecisionRow = {
 function within(root: string, target: string): boolean {
   return target.startsWith(root + path.sep);
 }
-function markTurn(mark: string): DemandRow['turn'] {
-  if (mark === 'awaiting_approval') return 'person';
-  if (mark === 'approved') return 'guide';
-  if (mark === 'in_progress' || mark === 'revising') return 'ai';
-  return 'unknown';
-}
-
-/** Lê apenas os estados, com até cinco leituras simultâneas e sem seguir links para fora do registro. */
-export async function listDemandRows(repoRoot: string): Promise<DemandRow[]> {
-  const paths = resolveAidlcPaths(repoRoot);
-  let names: string[];
-  try {
-    const entries = await readdir(paths.intentsDir, { withFileTypes: true });
-    names = entries
-      .filter((entry) => entry.isDirectory() && isSafeName(entry.name))
-      .map((entry) => entry.name);
-  } catch {
-    return [];
-  }
-  try {
-    const registry = JSON.parse(
-      await readFile(path.join(paths.intentsDir, 'intents.json'), 'utf8'),
-    ) as unknown;
-    if (Array.isArray(registry)) {
-      const archived = new Set(
-        registry
-          .filter(
-            (entry): entry is { dirName: string; status: string } =>
-              typeof entry === 'object' &&
-              entry !== null &&
-              'dirName' in entry &&
-              'status' in entry,
-          )
-          .filter((entry) => entry.status === 'archived')
-          .map((entry) => entry.dirName),
-      );
-      names = names.filter((name) => !archived.has(name));
-    }
-  } catch {
-    /* Registro ausente ou inválido: as pastas continuam sendo a fonte. */
-  }
-  const active = readActiveIntent(paths);
-  const rows: DemandRow[] = new Array(names.length);
-  let cursor = 0;
-  async function worker(): Promise<void> {
-    while (cursor < names.length) {
-      const index = cursor++;
-      const intentId = names[index]!;
-      const recordDir = path.join(paths.intentsDir, intentId);
-      const statePath = path.join(recordDir, 'aidlc-state.md');
-      const fallback: DemandRow = {
-        intentId,
-        title: intentId,
-        scope: '',
-        stageLabel: null,
-        doneCount: 0,
-        totalCount: 0,
-        turn: 'unknown',
-        isActive: active === intentId,
-        readable: false,
-        failedPath: statePath,
-      };
-      try {
-        const realRoot = await realpath(paths.intentsDir);
-        const realRecord = await realpath(recordDir);
-        if (!within(realRoot, realRecord)) {
-          rows[index] = fallback;
-          continue;
-        }
-        const state = parseState(await readFile(statePath, 'utf8'));
-        const planned = state.stages.filter((stage) => stage.planned === 'execute');
-        const current = state.stages.find((stage) => stage.slug === state.currentStage);
-        rows[index] = {
-          intentId,
-          title: state.project,
-          scope: state.scope,
-          stageLabel: state.currentStage,
-          doneCount: planned.filter((stage) => stage.mark === 'approved').length,
-          totalCount: planned.length,
-          turn: markTurn(current?.mark ?? ''),
-          isActive: active === intentId,
-          readable: true,
-        };
-      } catch {
-        rows[index] = fallback;
-      }
-    }
-  }
-  await Promise.all(Array.from({ length: Math.min(5, names.length) }, () => worker()));
-  return rows.sort(
-    (a, b) => Number(b.isActive) - Number(a.isActive) || a.intentId.localeCompare(b.intentId),
-  );
-}
-
 type Event = {
   event: string;
   stage: string | null;
@@ -146,7 +39,12 @@ function parseEvents(text: string): Event[] {
         event,
         at,
         stage: field('Stage') || null,
-        unit: field('Unit') || null,
+        unit:
+          field('Unit') ||
+          (event === 'PLAN_APPROVAL_RECORDED'
+            ? /^unit:(.+)$/.exec(field('Plan Target'))?.[1]
+            : null) ||
+          null,
         scope: field('Gate Scope') || null,
         details:
           field('Details') ||
@@ -229,6 +127,7 @@ export async function readUnits(repoRoot: string, intentId: string): Promise<Uni
       lastStage = event.stage ?? lastStage;
       if (
         event.event === 'UNIT_STARTED' ||
+        event.event === 'PLAN_APPROVAL_RECORDED' ||
         event.event === 'UNIT_COMPLETED' ||
         event.event === 'UNIT_SKIPPED'
       )

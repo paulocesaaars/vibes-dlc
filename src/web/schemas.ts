@@ -5,7 +5,6 @@ export const MAX_COMMAND_LENGTH = 8000;
 export const MAX_INPUT_BYTES = 64 * 1024;
 const MAX_BODY_BYTES = 1024 * 1024;
 
-const uuid = z.uuid();
 export const commandTextSchema = z
   .string()
   .min(1)
@@ -15,34 +14,6 @@ export const commandTextSchema = z
     return !/[\u0000-\u001f\u007f]/.test(text);
   }, 'O comando não pode ter caracteres de controle.')
   .refine((text) => text.trim().length > 0, 'O comando não pode ficar vazio.');
-
-export const commandSchema = z.object({
-  commandId: uuid,
-  intentId: z.string().min(1).max(200),
-  stageSlug: z.string().max(200),
-  text: commandTextSchema,
-  mode: z.enum(['execute', 'paste']),
-});
-
-export const newDemandCommandSchema = z.object({
-  commandId: uuid,
-  text: commandTextSchema,
-  mode: z.enum(['execute', 'paste']),
-  kind: z.enum(['new_demand', 'analysis']),
-});
-export const activateCommandSchema = z.object({
-  commandId: uuid,
-  mode: z.enum(['execute', 'paste']),
-});
-export const noteSchema = z.object({
-  path: z.string().min(1).max(1024),
-  text: z.string().trim().min(1).max(4000),
-});
-
-export const sessionSchema = z.object({
-  sessionId: z.string().min(1).max(200).optional(),
-  newSession: z.boolean().optional(),
-});
 
 export const inputSchema = z.object({
   sessionId: z.string().min(1).max(200),
@@ -57,59 +28,6 @@ export const resizeSchema = z.object({
   cols: z.number().int().min(1).max(500),
   rows: z.number().int().min(1).max(200),
 });
-
-export const understoodSchema = z.object({ stageSlug: z.string().min(1).max(200) });
-
-/** Mesmo padrão seguro do comando de perguntas, para etapa e Unidade vindas da interface. */
-const slug = z
-  .string()
-  .regex(/^[a-z0-9][a-z0-9-]*$/)
-  .max(200);
-const MAX_PATH_LENGTH = 1024;
-const artifactPath = z.string().min(1).max(MAX_PATH_LENGTH);
-
-export const conclusionSchema = z.object({ stageSlug: slug });
-
-export const artifactsQuerySchema = z.object({
-  stage: slug,
-  unit: slug.optional(),
-  path: artifactPath.optional(),
-  /** Consulta na trilha: inclui as pastas de todas as Unidades. */
-  consult: z.enum(['1']).optional(),
-});
-
-export const reviewSchema = z.object({
-  path: artifactPath,
-  contentHash: z.string().regex(/^[0-9a-f]{64}$/),
-});
-
-export const seenSchema = z.object({
-  stageSlug: slug,
-  unit: z.union([slug, z.literal('')]),
-  mark: z.enum([
-    'pending',
-    'in_progress',
-    'awaiting_approval',
-    'revising',
-    'approved',
-    'skipped',
-    'unknown',
-  ]),
-});
-
-export type SeenResponse = {
-  status: 'first_visit' | 'same' | 'changed';
-  current: { stageSlug: string; unit: string; mark: string };
-  /** O aviso do que mudou com o painel fechado. Só existe em `changed`. */
-  text: string | null;
-};
-
-/** Lê os parâmetros da URL, sem aceitar repetidos nem desconhecidos como dado útil. */
-export function readQuery<T>(request: Request, schema: z.ZodType<T>): T | null {
-  const params = Object.fromEntries(new URL(request.url).searchParams.entries());
-  const parsed = schema.safeParse(params);
-  return parsed.success ? parsed.data : null;
-}
 
 export const streamQuerySchema = z.object({
   sessionId: z.string().min(1).max(200),
@@ -155,7 +73,6 @@ export const customizationPutSchema = z.strictObject({
   colors: z.record(z.string().max(40), z.string().max(40).nullable()).optional(),
   says: z.record(z.string().max(80), sayFieldsSchema).optional(),
   media: z.record(z.string().max(80), z.null()).optional(),
-  cliKind: z.enum(['claude_code', 'other']).nullable().optional(),
   resetAll: z.literal(true).optional(),
 });
 export const visitActionSchema = z.strictObject({ visitId: z.string().min(1).max(100) });

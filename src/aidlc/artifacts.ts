@@ -1,5 +1,3 @@
-import { createHash } from 'node:crypto';
-import { createReadStream } from 'node:fs';
 import { readdir, readFile, realpath, stat } from 'node:fs/promises';
 import path from 'node:path';
 
@@ -9,11 +7,10 @@ const MAX_LISTED_FILES = 500;
 const BINARY_PROBE_BYTES = 8192;
 const UNIT_DIRECTORY = /^u\d+-/;
 
-export type ArtifactItem = { path: string; name: string; contentHash: string };
+export type ArtifactItem = { path: string; name: string };
 
 export type ArtifactContent = {
   path: string;
-  contentHash: string;
   size: number;
   /** `null` quando o arquivo não é mostrado, com o motivo em `omittedReason`. */
   content: string | null;
@@ -87,7 +84,14 @@ export async function listArtifactPaths(
   scope: ArtifactScope = {},
 ): Promise<string[]> {
   const found: string[] = [];
+  const root = await realpath(recordDir);
   for (const directory of await stageDirectories(recordDir, phase, stageSlug, scope)) {
+    try {
+      if (!isInside(root, await realpath(directory))) continue;
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') continue;
+      throw error;
+    }
     await collectFiles(directory, found);
   }
   return found;
@@ -123,43 +127,29 @@ export async function resolveArtifactPath(
   }
 }
 
-function hashStream(file: string): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const hash = createHash('sha256');
-    createReadStream(file)
-      .on('data', (chunk) => hash.update(chunk))
-      .on('error', reject)
-      .on('end', () => resolve(hash.digest('hex')));
-  });
-}
-
 /** Lê como texto até 2 MB. Acima disso, ou com conteúdo binário, devolve só o caminho e o motivo. */
 export async function readArtifactFile(resolved: ResolvedArtifact): Promise<ArtifactContent> {
   const { absolute, recordPath } = resolved;
   const { size } = await stat(absolute);
   if (size > MAX_ARTIFACT_BYTES) {
-    const contentHash = await hashStream(absolute);
-    return { path: recordPath, contentHash, size, content: null, omittedReason: 'too_large' };
+    return { path: recordPath, size, content: null, omittedReason: 'too_large' };
   }
   const buffer = await readFile(absolute);
-  const contentHash = createHash('sha256').update(buffer).digest('hex');
   if (buffer.subarray(0, BINARY_PROBE_BYTES).includes(0)) {
-    return { path: recordPath, contentHash, size, content: null, omittedReason: 'binary' };
+    return { path: recordPath, size, content: null, omittedReason: 'binary' };
   }
   return {
     path: recordPath,
-    contentHash,
     size,
     content: buffer.toString('utf8'),
     omittedReason: null,
   };
 }
 
-/** Hash de um arquivo já listado, em fluxo, sem carregar arquivos grandes na memória. */
+/** Metadados do arquivo listado, sem ler seu conteúdo. */
 export async function toArtifactItem(recordDir: string, absolute: string): Promise<ArtifactItem> {
   return {
     path: toRecordPath(recordDir, absolute),
     name: path.basename(absolute),
-    contentHash: await hashStream(absolute),
   };
 }

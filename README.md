@@ -1,92 +1,99 @@
 # Vibes DLC
 
-Guia local, em português, que conduz uma pessoa pelo AI-DLC passo a passo, com um terminal real ao
-lado. O painel acompanha os arquivos do AI-DLC, apresenta artefatos para revisão e mantém as
-aprovações no terminal, nos gates do framework.
+Painel local, em português, para acompanhar projetos com AI-DLC, com um terminal real ao lado.
+Uma instalação abre diferentes repositórios, um por vez. O estado compartilhado vem dos arquivos
+do AI-DLC; somente as preferências pessoais ficam na máquina do usuário.
 
 ## Pré-requisitos
 
 - Node.js 22.13 ou superior e npm.
-- No Windows, Git para Windows com Git Bash. É possível indicar outro caminho com `VIBES_SHELL`.
-- CLI de IA instalada e autenticada na máquina. Os comandos prontos do guia são para Claude Code;
-  a opção Outra CLI apresenta esses comandos como referência, sem envio.
-- AI-DLC instalado no projeto. O guia também abre sem ele e oferece instruções de preparação.
+- No Windows, Git para Windows com Git Bash; `VIBES_SHELL` permite indicar outro caminho.
+- Projetos com AI-DLC já configurado e com arquivos compatíveis com o leitor.
+- Claude Code, Devin ou GitHub Copilot já instalado, autenticado e funcionando no terminal.
 
-O terminal usa `node-pty`, um módulo nativo. Se a instalação precisar compilá-lo, serão necessárias
-as ferramentas de compilação compatíveis com seu sistema; no Windows, isso pode incluir Python e
-Visual Studio Build Tools com C++.
+O terminal usa o módulo nativo `node-pty`. Sua instalação pode exigir Python e ferramentas
+de compilação C++, conforme o sistema.
 
-## Instalação no seu projeto
+## Instalação central
 
-1. Crie uma subpasta `vibes-dlc/` na raiz do projeto.
-2. Copie para ela somente os itens abaixo, preservando os caminhos:
-   - `src/`
-   - `public/`
-   - `migrations/`
-   - `scripts/run-next.mjs`
-   - `scripts/no-network.cjs`
-   - `package.json`
-   - `package-lock.json`
-   - `next.config.ts`
-   - `next-env.d.ts`
-   - `tsconfig.json`
-3. Na subpasta, execute `npm install` e depois `npm run dev`.
-4. Abra <http://127.0.0.1:3000>.
-5. Inclua `.vibes/` no `.gitignore` do projeto que receber o guia.
+1. Mantenha este repositório em uma pasta própria, separada dos projetos acompanhados.
+2. Execute `npm install` e `npm run dev`.
+3. Abra <http://127.0.0.1:3000>.
+4. Informe o caminho absoluto de um projeto local com AI-DLC.
 
-Não copie as pastas `aidlc/`, `.claude/`, `.vibes/`, `node_modules/` ou `.next/` do produto para
-essa subpasta. O framework deve estar instalado no projeto que você deseja conduzir, incluindo
-`.claude/tools/data/stage-graph.json`, usado pelo leitor de etapas.
+Não copie o produto para cada projeto. O Vibes não cria `.vibes/` nem arquivos próprios nos
+repositórios acompanhados. Não há importação de instalações antigas.
 
-Para executar uma compilação de produção, use `npm run build` e depois `npm start`.
-
-Sem encontrar `aidlc/`, o terminal abre na pasta pai do produto. A tela oferece o comando
-`aidlc config --harness claude --mcp none --yes` e, depois, `claude`. O ícone de copiar fica ao lado
-de cada comando; **Enviar ao terminal** cola sem executar. Pressione Enter no terminal e, após a
-preparação, clique em **Tentar de novo**. Se `aidlc` não estiver instalado, siga as instruções do
-repositório `awslabs/aidlc-workflows` indicadas pelo guia.
+Para produção, execute `npm run build` e `npm start`.
 
 ## Uso
 
-- Abra uma demanda existente ou selecione **Nova demanda**. Descreva o trabalho, confirme o nível
-  sugerido ou escolha outro e confira o comando. Também é possível pedir uma análise à sua IA.
-- Na etapa, siga Entender, Enviar, Acompanhar, Revisar e Aprovar. Abra sua CLI de IA no terminal
-  antes de enviar os comandos do fluxo.
-- Copie as sugestões pelo ícone no canto direito. Nos fluxos com envio habilitado, escolha entre
-  executar o comando e apenas colá-lo. Aprovações e respostas continuam no terminal.
-- Consulte Artefatos, Unidades e ciclos, Decisões e Comandos nas abas da demanda. Notas em
-  artefatos são locais e não são enviadas à IA.
-- Em **Personalizar**, altere artes, frases, cores e a opção de CLI. **Cancelar** desfaz as mudanças
-  daquela visita; **Concluir** as mantém.
+- Selecione o **Projeto** no cabeçalho ou abra um dos projetos recentes.
+  Use **Escolher pasta** para navegar pelos diretórios. O × de cada recente remove o atalho
+  e aparece ao passar o mouse ou focar pelo teclado; em telas de toque, permanece visível.
+- Escolha **Claude Code**, **Devin** ou **GitHub Copilot** no seletor **IA**, ao lado do projeto.
+  A escolha é lembrada localmente por projeto.
+- Abra uma sessão no terminal e inicie manualmente a IA escolhida.
+- Consulte demandas, trilha, artefatos, unidades e decisões registradas no AI-DLC.
+- Para criar, analisar, continuar ou ativar uma demanda, confira o comando antes de confirmar.
+  É possível executá-lo com Enter ou apenas colar.
+- Para Devin, o comando começa com `aidlc`; para Claude Code e Copilot, com `/aidlc`.
+  Trocar a seleção ajusta os próximos comandos e não substitui a ferramenta aberta.
+- Aprove e responda no terminal, nos gates do próprio AI-DLC.
+- Em **Personalizar**, altere cores, frases e mídias globais. Cancelar desfaz as mudanças da visita.
+- Trocar de projeto com terminal vivo pede confirmação e encerra essa sessão.
+  Todas as abas do mesmo servidor passam a acompanhar o projeto escolhido.
 
-Recarregar a página ou recolher o terminal preserva a sessão enquanto o servidor estiver vivo.
-F6 alterna o foco entre guia e terminal.
+O painel consulta os arquivos a cada dois segundos enquanto estiver aberto. Enviar um comando
+não comprova sua execução. O painel não interpreta a saída da IA nem afirma que ela está
+trabalhando a partir da ausência de mudanças.
 
-## Configuração e atualização
+Recarregar a página preserva a sessão enquanto o servidor estiver vivo. F6 alterna o foco entre
+painel e terminal. O projeto deve ser selecionado novamente após reiniciar o servidor.
 
-As variáveis opcionais e seus limites estão em [Configuração e segurança](docs/TDD.md#configuração-e-segurança).
-Por padrão, o painel escuta em `127.0.0.1:3000`, sem autenticação. Expor o servidor à rede permite
-que quem acessa o painel use o terminal da máquina.
+## Continuidade entre desenvolvedores
 
-Para atualizar, substitua os arquivos da subpasta, execute `npm install` e reinicie o guia.
-Preserve `.vibes/` na raiz do projeto: ela contém o banco e as mídias personalizadas. As migrações
-pendentes são aplicadas automaticamente, com cópia do banco que já possui migrações anteriores.
+Versione e compartilhe os arquivos do AI-DLC junto com o trabalho do projeto. Depois de
+`commit`, `push` e `pull`, outro dev abre o clone dele no Vibes e vê o andamento registrado.
+
+Preferências, sessões de terminal e conversas internas das ferramentas não são compartilhadas.
+Não há notas, marcações de revisão, histórico persistido de comandos ou progresso pessoal
+dos antigos cinco passos.
+
+## Preferências locais
+
+O banco `preferences.db` e a pasta `media/` ficam em:
+
+- Windows: `%LOCALAPPDATA%/vibes-dlc/`.
+- macOS: `~/Library/Application Support/vibes-dlc/`.
+- Linux: `${XDG_DATA_HOME:-~/.local/share}/vibes-dlc/`.
+
+`VIBES_DATA_DIR` permite indicar uma pasta absoluta alternativa, fora dos projetos acompanhados.
+Somente projetos recentes, IA por projeto e personalizações são persistidos. Não existe banco
+compartilhado ou arquivo adicional do Vibes para versionar no Git.
+
+## Configuração e limites
+
+`PORT` tem padrão 3000 e `VIBES_HOST` tem padrão `127.0.0.1`. Não há autenticação.
+Quem acessa o painel pode operar o terminal da máquina; mantenha a escuta local.
+Outras opções e o contrato de arquivos estão no [TDD](docs/TDD.md).
+
+O grafo `stage-graph.json` é procurado na localização conhecida de Claude e, na ausência dela,
+nas pastas de configuração ocultas e em `aidlc/`. A preferência de IA não define esse caminho.
+Formatos incompatíveis geram um diagnóstico; o painel não oferece instalação ou configuração.
 
 ## Desenvolvimento
 
-- `npm run check`: lint, formatação e checagem de tipos; não executa testes.
-- `npm run lint`: ESLint e conferência de formatação com Prettier.
-- `npm run typecheck`: TypeScript sem emissão de arquivos.
-- `npm run format`: aplica a formatação configurada.
-- `npm run verify`: executa `check`. O projeto não possui testes.
-
-As skills locais de revisão, versionamento e atualização de documentação ficam em `.agents/skills/`
-e `.claude/skills/`. As regras compartilhadas estão em [AGENTS.md](AGENTS.md), e `HARNESS.md` é o
-ponto de extensão para regras específicas do projeto.
+- `npm run check`: lint, formatação e tipos.
+- `npm run lint`: ESLint e conferência de formatação.
+- `npm run typecheck`: TypeScript sem emissão.
+- `npm run format`: aplica Prettier.
+- `npm run verify`: executa `check`; não há suíte de testes no projeto.
 
 ## Referências
 
-- [Produto e comportamento](docs/PRD.md)
-- [Arquitetura e configuração](docs/TDD.md)
-- [Design da interface](docs/DESIGN.md)
-- [Observações sobre o AI-DLC](docs/FEEDBACK-AIDLC.md)
+- [Produto](docs/PRD.md).
+- [Arquitetura](docs/TDD.md).
+- [Design](docs/DESIGN.md).
+- [Especificação](docs/SPEC-MULTIPLOS-REPOSITORIOS.md).
+- [Plano](docs/PLANO-MULTIPLOS-REPOSITORIOS.md).

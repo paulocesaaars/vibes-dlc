@@ -2,14 +2,9 @@ import { mkdirSync } from 'node:fs';
 import path from 'node:path';
 import { Database } from './database';
 import { applyMigrations } from './migrations';
-import { SentCommandRepo } from './sent-command-repo';
 
 export const DEFAULT_MIGRATIONS_DIR = path.join(process.cwd(), 'migrations');
 
-/** Nome que o SQLite reserva para o banco que vive só na memória do processo. */
-export const IN_MEMORY = ':memory:';
-
-/** Não foi possível criar `.vibes/` ou abrir o banco: falha fatal, com o caminho e o motivo. */
 export class StorageError extends Error {
   constructor(
     readonly targetPath: string,
@@ -24,18 +19,14 @@ function describe(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
-/**
- * Cria `.vibes/` se faltar, migra e marca como `failed` o que ficou em `pending` de um processo
- * interrompido (BR1.5, BR6.1, NFR12.3). A ordem segue `reliability-design.md`.
- */
 export function prepareStorage(
   dbPath: string,
   migrationsDir: string = DEFAULT_MIGRATIONS_DIR,
 ): Database {
   const directory = path.dirname(dbPath);
   try {
-    // Banco em memória (sem raiz do AI-DLC) não tem pasta nem arquivo para criar.
-    if (dbPath !== IN_MEMORY) mkdirSync(directory, { recursive: true });
+    // O banco de preferências existe independentemente de haver um projeto selecionado.
+    mkdirSync(directory, { recursive: true });
   } catch (error) {
     throw new StorageError(directory, describe(error));
   }
@@ -49,7 +40,6 @@ export function prepareStorage(
 
   try {
     applyMigrations(db, dbPath, migrationsDir);
-    new SentCommandRepo(db).failInterrupted();
   } catch (error) {
     db.close();
     throw error;
